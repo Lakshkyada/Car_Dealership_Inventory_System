@@ -317,3 +317,154 @@ describe('GET /api/vehicles', () => {
     expect(vehicle).toHaveProperty('updatedAt');
   });
 });
+
+// ─── PUT /api/vehicles/:id ────────────────────────────────────────────────────
+
+describe('PUT /api/vehicles/:id', () => {
+  const baseVehicle = {
+    make: 'Toyota',
+    model: 'Camry',
+    category: 'Sedan',
+    price: 25000,
+    quantity: 10,
+  };
+
+  // ── Authentication guard ───────────────────────────────────────────────────
+
+  it('should reject unauthenticated requests (no token)', async () => {
+    const vehicle = await Vehicle.create(baseVehicle);
+
+    const res = await request(app)
+      .put(`/api/vehicles/${vehicle._id}`)
+      .send({ price: 30000 });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.body).toHaveProperty('message');
+    expect(res.body.message).toMatch(/not authorized/i);
+  });
+
+  it('should reject requests with an invalid token', async () => {
+    const vehicle = await Vehicle.create(baseVehicle);
+
+    const res = await request(app)
+      .put(`/api/vehicles/${vehicle._id}`)
+      .set('Authorization', 'Bearer invalidtoken')
+      .send({ price: 30000 });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.body).toHaveProperty('message');
+  });
+
+  // ── Not found ──────────────────────────────────────────────────────────────
+
+  it('should return 404 when vehicle does not exist', async () => {
+    const nonExistentId = new mongoose.Types.ObjectId();
+
+    const res = await request(app)
+      .put(`/api/vehicles/${nonExistentId}`)
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({ price: 30000 });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.body).toHaveProperty('message');
+    expect(res.body.message).toMatch(/not found/i);
+  });
+
+  // ── Successful update ──────────────────────────────────────────────────────
+
+  it('should update vehicle details when authenticated as USER', async () => {
+    const vehicle = await Vehicle.create(baseVehicle);
+
+    const res = await request(app)
+      .put(`/api/vehicles/${vehicle._id}`)
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({ price: 30000, quantity: 5 });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.price).toBe(30000);
+    expect(res.body.quantity).toBe(5);
+    expect(res.body.make).toBe(baseVehicle.make);
+  });
+
+  it('should update vehicle details when authenticated as ADMIN', async () => {
+    const vehicle = await Vehicle.create(baseVehicle);
+
+    const res = await request(app)
+      .put(`/api/vehicles/${vehicle._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ make: 'Honda', model: 'Accord' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.make).toBe('Honda');
+    expect(res.body.model).toBe('Accord');
+  });
+
+  it('should return the updated vehicle with all expected fields', async () => {
+    const vehicle = await Vehicle.create(baseVehicle);
+
+    const res = await request(app)
+      .put(`/api/vehicles/${vehicle._id}`)
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({ price: 28000 });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveProperty('_id');
+    expect(res.body).toHaveProperty('make');
+    expect(res.body).toHaveProperty('model');
+    expect(res.body).toHaveProperty('category');
+    expect(res.body).toHaveProperty('price');
+    expect(res.body).toHaveProperty('quantity');
+    expect(res.body).toHaveProperty('createdAt');
+    expect(res.body).toHaveProperty('updatedAt');
+  });
+
+  // ── Validation errors ──────────────────────────────────────────────────────
+
+  it('should reject when price is a negative number', async () => {
+    const vehicle = await Vehicle.create(baseVehicle);
+
+    const res = await request(app)
+      .put(`/api/vehicles/${vehicle._id}`)
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({ price: -100 });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toHaveProperty('message');
+  });
+
+  it('should reject when quantity is a negative number', async () => {
+    const vehicle = await Vehicle.create(baseVehicle);
+
+    const res = await request(app)
+      .put(`/api/vehicles/${vehicle._id}`)
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({ quantity: -5 });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toHaveProperty('message');
+  });
+
+  it('should reject when make is an empty string', async () => {
+    const vehicle = await Vehicle.create(baseVehicle);
+
+    const res = await request(app)
+      .put(`/api/vehicles/${vehicle._id}`)
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({ make: '' });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toHaveProperty('message');
+  });
+
+  it('should reject when request body is empty', async () => {
+    const vehicle = await Vehicle.create(baseVehicle);
+
+    const res = await request(app)
+      .put(`/api/vehicles/${vehicle._id}`)
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({});
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toHaveProperty('message');
+  });
+});
