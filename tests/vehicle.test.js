@@ -468,3 +468,91 @@ describe('PUT /api/vehicles/:id', () => {
     expect(res.body).toHaveProperty('message');
   });
 });
+
+// ─── DELETE /api/vehicles/:id ─────────────────────────────────────────────────
+
+describe('DELETE /api/vehicles/:id', () => {
+  const baseVehicle = {
+    make: 'Toyota',
+    model: 'Camry',
+    category: 'Sedan',
+    price: 25000,
+    quantity: 10,
+  };
+
+  // ── Authentication guard ───────────────────────────────────────────────────
+
+  it('should reject unauthenticated requests (no token)', async () => {
+    const vehicle = await Vehicle.create(baseVehicle);
+
+    const res = await request(app).delete(`/api/vehicles/${vehicle._id}`);
+
+    expect(res.statusCode).toBe(401);
+    expect(res.body).toHaveProperty('message');
+    expect(res.body.message).toMatch(/not authorized/i);
+  });
+
+  it('should reject requests with an invalid token', async () => {
+    const vehicle = await Vehicle.create(baseVehicle);
+
+    const res = await request(app)
+      .delete(`/api/vehicles/${vehicle._id}`)
+      .set('Authorization', 'Bearer invalidtoken');
+
+    expect(res.statusCode).toBe(401);
+    expect(res.body).toHaveProperty('message');
+  });
+
+  // ── Authorization guard (ADMIN only) ──────────────────────────────────────
+
+  it('should return 403 when authenticated as USER (non-admin)', async () => {
+    const vehicle = await Vehicle.create(baseVehicle);
+
+    const res = await request(app)
+      .delete(`/api/vehicles/${vehicle._id}`)
+      .set('Authorization', `Bearer ${userToken}`);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toHaveProperty('message');
+    expect(res.body.message).toMatch(/not authorized/i);
+  });
+
+  // ── Not found ──────────────────────────────────────────────────────────────
+
+  it('should return 404 when vehicle does not exist (as ADMIN)', async () => {
+    const nonExistentId = new mongoose.Types.ObjectId();
+
+    const res = await request(app)
+      .delete(`/api/vehicles/${nonExistentId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.statusCode).toBe(404);
+    expect(res.body).toHaveProperty('message');
+    expect(res.body.message).toMatch(/not found/i);
+  });
+
+  // ── Successful deletion ────────────────────────────────────────────────────
+
+  it('should delete vehicle when authenticated as ADMIN', async () => {
+    const vehicle = await Vehicle.create(baseVehicle);
+
+    const res = await request(app)
+      .delete(`/api/vehicles/${vehicle._id}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveProperty('message');
+    expect(res.body.message).toMatch(/deleted/i);
+  });
+
+  it('should remove the vehicle from the database after deletion', async () => {
+    const vehicle = await Vehicle.create(baseVehicle);
+
+    await request(app)
+      .delete(`/api/vehicles/${vehicle._id}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    const deleted = await Vehicle.findById(vehicle._id);
+    expect(deleted).toBeNull();
+  });
+});
