@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import Button from '../components/Button.jsx';
+import FormCard from '../components/FormCard.jsx';
 import FormField from '../components/FormField.jsx';
 import Toast from '../components/Toast.jsx';
 import { useToast } from '../components/useToast.js';
+import { useRedirectToast } from '../components/useRedirectToast.js';
 import { loginRequest } from '../api/authApi.js';
-import { useAuth } from '../context/AuthContext.jsx';
+import { useAuth } from '../context/useAuth.js';
 import { getApiErrorMessage, isValidEmail } from '../utils/validators.js';
 
 const INITIAL_FORM = { email: '', password: '' };
@@ -33,15 +35,9 @@ function Login() {
 
   const { login } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const { toast, showToast, hideToast } = useToast();
 
-  useEffect(() => {
-    if (location.state?.registered) {
-      showToast('Registration successful. You can now log in.', 'success');
-      navigate(location.pathname, { replace: true, state: {} });
-    }
-  }, [location, navigate, showToast]);
+  useRedirectToast(showToast);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -74,13 +70,8 @@ function Login() {
   };
 
   return (
-    <section className="mx-auto flex max-w-md flex-col items-center px-4 py-16 sm:px-6">
-      <div className="w-full rounded-xl border border-gray-200 bg-white p-8 shadow-sm">
-        <h1 className="text-2xl font-bold text-gray-900">Login</h1>
-        <p className="mt-2 text-sm text-gray-600">
-          Welcome back! Please enter your details.
-        </p>
-
+    <>
+      <FormCard title="Login" description="Welcome back! Please enter your details.">
         <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
           <FormField
             label="Email"
@@ -114,10 +105,10 @@ function Login() {
             Register
           </Link>
         </p>
-      </div>
+      </FormCard>
 
       <Toast toast={toast} onClose={hideToast} />
-    </section>
+    </>
   );
 }
 

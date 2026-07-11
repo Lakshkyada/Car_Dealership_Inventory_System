@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import FormCard from '../../components/FormCard.jsx';
 import VehicleForm from '../../components/VehicleForm.jsx';
 import Toast from '../../components/Toast.jsx';
 import Spinner from '../../components/Spinner.jsx';
 import { useToast } from '../../components/useToast.js';
 import { fetchVehicles, updateVehicle } from '../../api/vehicleApi.js';
-import { useAuth } from '../../context/AuthContext.jsx';
+import { useAuth } from '../../context/useAuth.js';
 import { getApiErrorMessage } from '../../utils/validators.js';
 
 function EditVehicle() {
@@ -53,11 +54,8 @@ function EditVehicle() {
   };
 
   return (
-    <section className="mx-auto max-w-md px-4 py-16 sm:px-6">
-      <div className="rounded-xl border border-gray-200 bg-white p-8 shadow-sm">
-        <h1 className="text-2xl font-bold text-gray-900">Edit Vehicle</h1>
-        <p className="mt-2 text-sm text-gray-600">Update the vehicle details below.</p>
-
+    <>
+      <FormCard title="Edit Vehicle" description="Update the vehicle details below.">
         {isLoading && (
           <div className="mt-6 flex items-center gap-2 text-sm text-gray-500">
             <Spinner className="h-4 w-4" />
@@ -99,10 +97,10 @@ function EditVehicle() {
             />
           </div>
         )}
-      </div>
+      </FormCard>
 
       <Toast toast={toast} onClose={hideToast} />
-    </section>
+    </>
   );
 }
 

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import FormCard from '../../components/FormCard.jsx';
 import VehicleForm from '../../components/VehicleForm.jsx';
 import Toast from '../../components/Toast.jsx';
 import { useToast } from '../../components/useToast.js';
@@ -25,20 +26,18 @@ function AddVehicle() {
   };
 
   return (
-    <section className="mx-auto max-w-md px-4 py-16 sm:px-6">
-      <div className="rounded-xl border border-gray-200 bg-white p-8 shadow-sm">
-        <h1 className="text-2xl font-bold text-gray-900">Add Vehicle</h1>
-        <p className="mt-2 text-sm text-gray-600">
-          Fill in the details to add a new vehicle to the inventory.
-        </p>
-
+    <>
+      <FormCard
+        title="Add Vehicle"
+        description="Fill in the details to add a new vehicle to the inventory."
+      >
         <div className="mt-6">
           <VehicleForm onSubmit={handleSubmit} isSubmitting={isSubmitting} submitLabel="Add Vehicle" />
         </div>
-      </div>
+      </FormCard>
 
       <Toast toast={toast} onClose={hideToast} />
-    </section>
+    </>
   );
 }
 

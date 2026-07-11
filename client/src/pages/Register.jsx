@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Button from '../components/Button.jsx';
+import FormCard from '../components/FormCard.jsx';
 import FormField from '../components/FormField.jsx';
 import Toast from '../components/Toast.jsx';
 import { useToast } from '../components/useToast.js';
@@ -62,7 +63,10 @@ function Register() {
         email: form.email.trim(),
         password: form.password,
       });
-      navigate('/login', { state: { registered: true }, replace: true });
+      navigate('/login', {
+        state: { message: 'Registration successful. You can now log in.' },
+        replace: true,
+      });
     } catch (error) {
       showToast(getApiErrorMessage(error, 'Unable to register. Please try again.'), 'error');
     } finally {
@@ -71,13 +75,8 @@ function Register() {
   };
 
   return (
-    <section className="mx-auto flex max-w-md flex-col items-center px-4 py-16 sm:px-6">
-      <div className="w-full rounded-xl border border-gray-200 bg-white p-8 shadow-sm">
-        <h1 className="text-2xl font-bold text-gray-900">Register</h1>
-        <p className="mt-2 text-sm text-gray-600">
-          Create an account to get started.
-        </p>
-
+    <>
+      <FormCard title="Register" description="Create an account to get started.">
         <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
           <FormField
             label="Name"
@@ -120,10 +119,10 @@ function Register() {
             Login
           </Link>
         </p>
-      </div>
+      </FormCard>
 
       <Toast toast={toast} onClose={hideToast} />
-    </section>
+    </>
   );
 }
 

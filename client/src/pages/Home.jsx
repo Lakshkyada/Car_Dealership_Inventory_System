@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import VehicleCard from '../components/VehicleCard.jsx';
 import SearchFilter from '../components/SearchFilter.jsx';
 import ConfirmDialog from '../components/ConfirmDialog.jsx';
@@ -9,6 +9,7 @@ import ErrorState from '../components/ErrorState.jsx';
 import Spinner from '../components/Spinner.jsx';
 import Toast from '../components/Toast.jsx';
 import { useToast } from '../components/useToast.js';
+import { useRedirectToast } from '../components/useRedirectToast.js';
 import { getButtonClasses } from '../utils/buttonStyles.js';
 import {
   deleteVehicle,
@@ -17,14 +18,15 @@ import {
   restockVehicle,
   searchVehicles,
 } from '../api/vehicleApi.js';
-import { useAuth } from '../context/AuthContext.jsx';
+import { useAuth } from '../context/useAuth.js';
 import { getApiErrorMessage } from '../utils/validators.js';
 
 function Home() {
   const { user } = useAuth();
-  const location = useLocation();
   const navigate = useNavigate();
   const { toast, showToast, hideToast } = useToast();
+
+  useRedirectToast(showToast);
 
   const [vehicles, setVehicles] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -54,13 +56,6 @@ function Home() {
   useEffect(() => {
     loadVehicles(fetchVehicles());
   }, []);
-
-  useEffect(() => {
-    if (location.state?.message) {
-      showToast(location.state.message, 'success');
-      navigate(location.pathname, { replace: true, state: {} });
-    }
-  }, [location, navigate, showToast]);
 
   const handleSearch = (params) => {
     setLastRequest({ type: 'search', params });
