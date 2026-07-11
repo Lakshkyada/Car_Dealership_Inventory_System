@@ -23,3 +23,7 @@ export function updateVehicle(id, payload) {
 export function deleteVehicle(id) {
   return axiosInstance.delete(`/vehicles/${id}`);
 }
+
+export function restockVehicle(id, quantity) {
+  return axiosInstance.post(`/vehicles/${id}/restock`, { quantity });
+}

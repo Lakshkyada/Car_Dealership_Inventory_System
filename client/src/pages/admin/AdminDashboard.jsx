@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import VehicleTable from '../../components/VehicleTable.jsx';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
-import { deleteVehicle, fetchVehicles } from '../../api/vehicleApi.js';
+import RestockModal from '../../components/RestockModal.jsx';
+import { deleteVehicle, fetchVehicles, restockVehicle } from '../../api/vehicleApi.js';
 import { getApiErrorMessage } from '../../utils/validators.js';
 
 function AdminDashboard() {
@@ -13,6 +14,10 @@ function AdminDashboard() {
 
   const [vehiclePendingDelete, setVehiclePendingDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const [vehiclePendingRestock, setVehiclePendingRestock] = useState(null);
+  const [isRestocking, setIsRestocking] = useState(false);
+  const [restockError, setRestockError] = useState('');
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -55,6 +60,33 @@ function AdminDashboard() {
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const handleRestockSubmit = async (quantity) => {
+    if (!vehiclePendingRestock) return;
+
+    setIsRestocking(true);
+    setRestockError('');
+    try {
+      const { data: updatedVehicle } = await restockVehicle(vehiclePendingRestock._id, quantity);
+      setVehicles((prev) =>
+        prev.map((item) => (item._id === updatedVehicle._id ? updatedVehicle : item))
+      );
+      setFeedback({
+        type: 'success',
+        message: `Restocked ${updatedVehicle.make} ${updatedVehicle.model} successfully.`,
+      });
+      setVehiclePendingRestock(null);
+    } catch (err) {
+      setRestockError(getApiErrorMessage(err, 'Unable to restock vehicle. Please try again.'));
+    } finally {
+      setIsRestocking(false);
+    }
+  };
+
+  const handleCloseRestockModal = () => {
+    setVehiclePendingRestock(null);
+    setRestockError('');
   };
 
   return (
@@ -103,6 +135,7 @@ function AdminDashboard() {
               navigate(`/admin/vehicles/${vehicle._id}/edit`, { state: { vehicle } })
             }
             onDelete={(vehicle) => setVehiclePendingDelete(vehicle)}
+            onRestock={(vehicle) => setVehiclePendingRestock(vehicle)}
           />
         </div>
       )}
@@ -119,6 +152,15 @@ function AdminDashboard() {
         onConfirm={handleDeleteConfirm}
         onCancel={() => setVehiclePendingDelete(null)}
         isConfirming={isDeleting}
+      />
+
+      <RestockModal
+        isOpen={Boolean(vehiclePendingRestock)}
+        vehicle={vehiclePendingRestock}
+        onClose={handleCloseRestockModal}
+        onSubmit={handleRestockSubmit}
+        isSubmitting={isRestocking}
+        error={restockError}
       />
     </section>
   );

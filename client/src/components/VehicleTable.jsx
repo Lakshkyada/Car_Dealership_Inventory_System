@@ -1,6 +1,6 @@
 import { formatCurrency } from '../utils/format.js';
 
-function VehicleTable({ vehicles, onEdit, onDelete }) {
+function VehicleTable({ vehicles, onEdit, onDelete, onRestock }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
       <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
@@ -41,6 +41,13 @@ function VehicleTable({ vehicles, onEdit, onDelete }) {
                     className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
                   >
                     Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onRestock(vehicle)}
+                    className="rounded-md border border-blue-300 px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-50"
+                  >
+                    Restock
                   </button>
                   <button
                     type="button"
