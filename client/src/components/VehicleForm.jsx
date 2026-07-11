@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Button from './Button.jsx';
 import FormField from './FormField.jsx';
 
 const INITIAL_FORM = { make: '', model: '', category: '', price: '', quantity: '' };
@@ -102,13 +103,9 @@ function VehicleForm({ initialValues, onSubmit, isSubmitting, submitLabel = 'Sav
         placeholder="5"
       />
 
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-      >
+      <Button type="submit" disabled={isSubmitting} className="w-full">
         {isSubmitting ? 'Saving…' : submitLabel}
-      </button>
+      </Button>
     </form>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Button from './Button.jsx';
 import FormField from './FormField.jsx';
 
 function RestockModal({ isOpen, vehicle, onClose, onSubmit, isSubmitting, error }) {
@@ -55,21 +56,12 @@ function RestockModal({ isOpen, vehicle, onClose, onSubmit, isSubmitting, error 
           {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
 
           <div className="mt-6 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
+            <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? 'Restocking…' : 'Restock'}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

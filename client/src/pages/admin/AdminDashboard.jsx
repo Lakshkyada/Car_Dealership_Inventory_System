@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { getButtonClasses } from '../../utils/buttonStyles.js';
 import VehicleTable from '../../components/VehicleTable.jsx';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import RestockModal from '../../components/RestockModal.jsx';
@@ -93,10 +94,7 @@ function AdminDashboard() {
     <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-        <Link
-          to="/admin/vehicles/new"
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
-        >
+        <Link to="/admin/vehicles/new" className={getButtonClasses('primary')}>
           Add Vehicle
         </Link>
       </div>

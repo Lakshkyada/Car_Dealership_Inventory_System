@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { getButtonClasses } from '../utils/buttonStyles.js';
 
 function NotFound() {
   return (
@@ -7,10 +8,7 @@ function NotFound() {
       <p className="mt-4 text-lg text-gray-600">
         Sorry, the page you're looking for doesn't exist.
       </p>
-      <Link
-        to="/"
-        className="mt-6 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
-      >
+      <Link to="/" className={`mt-6 ${getButtonClasses('primary')}`}>
         Back to Home
       </Link>
     </section>

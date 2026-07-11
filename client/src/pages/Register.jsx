@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import Button from '../components/Button.jsx';
 import FormField from '../components/FormField.jsx';
 import { registerRequest } from '../api/authApi.js';
 import { getApiErrorMessage, isValidEmail } from '../utils/validators.js';
@@ -115,13 +116,9 @@ function Register() {
             placeholder="••••••••"
           />
 
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
+          <Button type="submit" disabled={isSubmitting} className="w-full">
             {isSubmitting ? 'Creating account…' : 'Register'}
-          </button>
+          </Button>
         </form>
 
         <p className="mt-6 text-center text-sm text-gray-600">

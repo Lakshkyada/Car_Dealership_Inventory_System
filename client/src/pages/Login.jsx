@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import Button from '../components/Button.jsx';
 import FormField from '../components/FormField.jsx';
 import { loginRequest } from '../api/authApi.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -107,13 +108,9 @@ function Login() {
             placeholder="••••••••"
           />
 
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
+          <Button type="submit" disabled={isSubmitting} className="w-full">
             {isSubmitting ? 'Logging in…' : 'Login'}
-          </button>
+          </Button>
         </form>
 
         <p className="mt-6 text-center text-sm text-gray-600">

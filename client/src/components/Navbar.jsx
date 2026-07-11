@@ -109,9 +109,14 @@ function Navbar() {
             </NavLink>
           ))}
           {isAuthenticated && (
-            <button type="button" onClick={handleLogout} className={buttonClasses}>
-              Logout
-            </button>
+            <>
+              {user?.name && (
+                <span className="px-3 py-1 text-sm text-gray-500">Hi, {user.name}</span>
+              )}
+              <button type="button" onClick={handleLogout} className={buttonClasses}>
+                Logout
+              </button>
+            </>
           )}
         </div>
       )}
