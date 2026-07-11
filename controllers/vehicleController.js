@@ -61,3 +61,15 @@ export const createVehicle = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
+
+// @desc    Get all vehicles
+// @route   GET /api/vehicles
+// @access  Private (authenticated users)
+export const getVehicles = async (req, res) => {
+  try {
+    const vehicles = await Vehicle.find().sort({ createdAt: -1 }).lean();
+    return res.status(200).json(vehicles);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};

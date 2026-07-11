@@ -207,3 +207,113 @@ describe('POST /api/vehicles', () => {
     expect(res.body).toHaveProperty('message');
   });
 });
+
+// ─── GET /api/vehicles ───────────────────────────────────────────────────────
+
+describe('GET /api/vehicles', () => {
+  const sampleVehicle = {
+    make: 'Toyota',
+    model: 'Camry',
+    category: 'Sedan',
+    price: 25000,
+    quantity: 10,
+  };
+
+  // ── Authentication guard ───────────────────────────────────────────────────
+
+  it('should reject unauthenticated requests (no token)', async () => {
+    const res = await request(app).get('/api/vehicles');
+
+    expect(res.statusCode).toBe(401);
+    expect(res.body).toHaveProperty('message');
+    expect(res.body.message).toMatch(/not authorized/i);
+  });
+
+  it('should reject requests with an invalid token', async () => {
+    const res = await request(app)
+      .get('/api/vehicles')
+      .set('Authorization', 'Bearer invalidtoken');
+
+    expect(res.statusCode).toBe(401);
+    expect(res.body).toHaveProperty('message');
+  });
+
+  // ── Empty collection ───────────────────────────────────────────────────────
+
+  it('should return an empty array when no vehicles exist', async () => {
+    const res = await request(app)
+      .get('/api/vehicles')
+      .set('Authorization', `Bearer ${userToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body).toHaveLength(0);
+  });
+
+  // ── Successful retrieval ───────────────────────────────────────────────────
+
+  it('should return all vehicles when authenticated as USER', async () => {
+    await Vehicle.create(sampleVehicle);
+    await Vehicle.create({ ...sampleVehicle, make: 'Honda', model: 'Civic' });
+
+    const res = await request(app)
+      .get('/api/vehicles')
+      .set('Authorization', `Bearer ${userToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body).toHaveLength(2);
+  });
+
+  it('should return all vehicles when authenticated as ADMIN', async () => {
+    await Vehicle.create(sampleVehicle);
+
+    const res = await request(app)
+      .get('/api/vehicles')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0]).toHaveProperty('_id');
+    expect(res.body[0].make).toBe(sampleVehicle.make);
+  });
+
+  // ── Sorted newest first ────────────────────────────────────────────────────
+
+  it('should return vehicles sorted newest first (descending createdAt)', async () => {
+    const first = await Vehicle.create({ ...sampleVehicle, make: 'Ford' });
+    const second = await Vehicle.create({ ...sampleVehicle, make: 'BMW' });
+
+    const res = await request(app)
+      .get('/api/vehicles')
+      .set('Authorization', `Bearer ${userToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveLength(2);
+    // newest (second) should come first
+    expect(res.body[0]._id).toBe(second._id.toString());
+    expect(res.body[1]._id).toBe(first._id.toString());
+  });
+
+  // ── Response shape ─────────────────────────────────────────────────────────
+
+  it('should return vehicles with expected fields', async () => {
+    await Vehicle.create(sampleVehicle);
+
+    const res = await request(app)
+      .get('/api/vehicles')
+      .set('Authorization', `Bearer ${userToken}`);
+
+    expect(res.statusCode).toBe(200);
+    const vehicle = res.body[0];
+    expect(vehicle).toHaveProperty('_id');
+    expect(vehicle).toHaveProperty('make');
+    expect(vehicle).toHaveProperty('model');
+    expect(vehicle).toHaveProperty('category');
+    expect(vehicle).toHaveProperty('price');
+    expect(vehicle).toHaveProperty('quantity');
+    expect(vehicle).toHaveProperty('createdAt');
+    expect(vehicle).toHaveProperty('updatedAt');
+  });
+});
