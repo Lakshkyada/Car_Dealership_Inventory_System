@@ -1,11 +1,6 @@
 import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
-
-const navLinks = [
-  { to: '/', label: 'Home' },
-  { to: '/login', label: 'Login' },
-  { to: '/register', label: 'Register' },
-];
+import { NavLink, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext.jsx';
 
 const linkClasses = ({ isActive }) =>
   `rounded-md px-3 py-2 text-sm font-medium transition-colors ${
@@ -14,8 +9,27 @@ const linkClasses = ({ isActive }) =>
       : 'text-gray-700 hover:bg-blue-50 hover:text-blue-600'
   }`;
 
+const buttonClasses =
+  'rounded-md px-3 py-2 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-blue-50 hover:text-blue-600';
+
 function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const { isAuthenticated, user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    setIsOpen(false);
+    navigate('/');
+  };
+
+  const navLinks = isAuthenticated
+    ? [{ to: '/', label: 'Home' }]
+    : [
+        { to: '/', label: 'Home' },
+        { to: '/login', label: 'Login' },
+        { to: '/register', label: 'Register' },
+      ];
 
   return (
     <nav className="sticky top-0 z-50 border-b border-gray-200 bg-white/90 backdrop-blur">
@@ -30,6 +44,18 @@ function Navbar() {
               {link.label}
             </NavLink>
           ))}
+          {isAuthenticated && (
+            <>
+              {user?.name && (
+                <span className="px-2 text-sm text-gray-500">
+                  Hi, {user.name}
+                </span>
+              )}
+              <button type="button" onClick={handleLogout} className={buttonClasses}>
+                Logout
+              </button>
+            </>
+          )}
         </div>
 
         <button
@@ -77,6 +103,11 @@ function Navbar() {
               {link.label}
             </NavLink>
           ))}
+          {isAuthenticated && (
+            <button type="button" onClick={handleLogout} className={buttonClasses}>
+              Logout
+            </button>
+          )}
         </div>
       )}
     </nav>
