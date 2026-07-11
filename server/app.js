@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import healthRoutes from './routes/healthRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import vehicleRoutes from './routes/vehicleRoutes.js';
@@ -6,6 +7,17 @@ import vehicleRoutes from './routes/vehicleRoutes.js';
 const app = express();
 
 // Middleware
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173').split(',');
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error('Not allowed by CORS'));
+    },
+  })
+);
 app.use(express.json());
 
 // Routes
