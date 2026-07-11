@@ -37,7 +37,7 @@ export const createVehicle = async (req, res) => {
       return res.status(400).json({ message: 'Quantity must be a non-negative number' });
     }
 
-    const vehicle = await Vehicle.create({ make, model, category, price, quantity });
+    const vehicle = await Vehicle.create({ make, model, category, price, quantity, owner: req.user._id });
 
     return res.status(201).json({
       _id: vehicle._id,
@@ -46,6 +46,7 @@ export const createVehicle = async (req, res) => {
       category: vehicle.category,
       price: vehicle.price,
       quantity: vehicle.quantity,
+      owner: vehicle.owner,
       createdAt: vehicle.createdAt,
       updatedAt: vehicle.updatedAt,
     });
@@ -76,7 +77,7 @@ export const getVehicles = async (req, res) => {
 
 // @desc    Update a vehicle
 // @route   PUT /api/vehicles/:id
-// @access  Private (authenticated users)
+// @access  Private (owner only)
 export const updateVehicle = async (req, res) => {
   try {
     const { make, model, category, price, quantity } = req.body;
@@ -105,17 +106,25 @@ export const updateVehicle = async (req, res) => {
       return res.status(400).json({ message: 'Quantity must be a non-negative number' });
     }
 
-    const vehicle = await Vehicle.findByIdAndUpdate(
-      req.params.id,
-      { make, model, category, price, quantity },
-      { returnDocument: 'after', runValidators: true }
-    ).lean();
+    const vehicle = await Vehicle.findById(req.params.id);
 
     if (!vehicle) {
       return res.status(404).json({ message: 'Vehicle not found' });
     }
 
-    return res.status(200).json(vehicle);
+    if (vehicle.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Not authorized to update this vehicle' });
+    }
+
+    if (make !== undefined) vehicle.make = make;
+    if (model !== undefined) vehicle.model = model;
+    if (category !== undefined) vehicle.category = category;
+    if (price !== undefined) vehicle.price = price;
+    if (quantity !== undefined) vehicle.quantity = quantity;
+
+    await vehicle.save();
+
+    return res.status(200).json(vehicle.toObject());
   } catch (error) {
     if (error.name === 'ValidationError') {
       const message = Object.values(error.errors)
@@ -130,14 +139,20 @@ export const updateVehicle = async (req, res) => {
 
 // @desc    Delete a vehicle
 // @route   DELETE /api/vehicles/:id
-// @access  Private (ADMIN only)
+// @access  Private (owner only)
 export const deleteVehicle = async (req, res) => {
   try {
-    const vehicle = await Vehicle.findByIdAndDelete(req.params.id);
+    const vehicle = await Vehicle.findById(req.params.id);
 
     if (!vehicle) {
       return res.status(404).json({ message: 'Vehicle not found' });
     }
+
+    if (vehicle.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Not authorized to delete this vehicle' });
+    }
+
+    await vehicle.deleteOne();
 
     return res.status(200).json({ message: 'Vehicle deleted successfully' });
   } catch (error) {
@@ -197,7 +212,7 @@ export const purchaseVehicle = async (req, res) => {
 
 // @desc    Restock a vehicle (increase quantity)
 // @route   POST /api/vehicles/:id/restock
-// @access  Private (ADMIN only)
+// @access  Private (owner only)
 export const restockVehicle = async (req, res) => {
   try {
     const { quantity } = req.body;
@@ -218,6 +233,10 @@ export const restockVehicle = async (req, res) => {
 
     if (!vehicle) {
       return res.status(404).json({ message: 'Vehicle not found' });
+    }
+
+    if (vehicle.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Not authorized to restock this vehicle' });
     }
 
     vehicle.quantity += quantity;

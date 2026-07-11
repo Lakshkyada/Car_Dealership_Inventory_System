@@ -9,6 +9,8 @@ import Vehicle from '../models/vehicleModel.js';
 let mongoServer;
 let userToken;
 let adminToken;
+let user;
+let admin;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -35,15 +37,16 @@ beforeEach(async () => {
     await mongoose.connection.collections[key].deleteMany({});
   }
 
-  // Create a regular USER and an ADMIN in the in-memory DB
-  const user = await User.create({
+  // Create two regular authenticated accounts (used as "owner" and "another user"
+  // in ownership-based authorization tests below).
+  user = await User.create({
     name: 'Regular User',
     email: 'user@example.com',
     password: 'password123',
     role: 'USER',
   });
 
-  const admin = await User.create({
+  admin = await User.create({
     name: 'Admin User',
     email: 'admin@example.com',
     password: 'password123',
@@ -100,6 +103,7 @@ describe('POST /api/vehicles', () => {
     expect(res.body.category).toBe(validVehicle.category);
     expect(res.body.price).toBe(validVehicle.price);
     expect(res.body.quantity).toBe(validVehicle.quantity);
+    expect(res.body.owner).toBe(user._id.toString());
     expect(res.body).toHaveProperty('createdAt');
     expect(res.body).toHaveProperty('updatedAt');
   });
@@ -113,6 +117,7 @@ describe('POST /api/vehicles', () => {
     expect(res.statusCode).toBe(201);
     expect(res.body).toHaveProperty('_id');
     expect(res.body.make).toBe(validVehicle.make);
+    expect(res.body.owner).toBe(admin._id.toString());
   });
 
   // ── Validation errors ────────────────────────────────────────────────────
@@ -253,8 +258,8 @@ describe('GET /api/vehicles', () => {
   // ── Successful retrieval ───────────────────────────────────────────────────
 
   it('should return all vehicles when authenticated as USER', async () => {
-    await Vehicle.create(sampleVehicle);
-    await Vehicle.create({ ...sampleVehicle, make: 'Honda', model: 'Civic' });
+    await Vehicle.create({ ...sampleVehicle, owner: user._id });
+    await Vehicle.create({ ...sampleVehicle, make: 'Honda', model: 'Civic', owner: user._id });
 
     const res = await request(app)
       .get('/api/vehicles')
@@ -266,7 +271,7 @@ describe('GET /api/vehicles', () => {
   });
 
   it('should return all vehicles when authenticated as ADMIN', async () => {
-    await Vehicle.create(sampleVehicle);
+    await Vehicle.create({ ...sampleVehicle, owner: user._id });
 
     const res = await request(app)
       .get('/api/vehicles')
@@ -282,8 +287,8 @@ describe('GET /api/vehicles', () => {
   // ── Sorted newest first ────────────────────────────────────────────────────
 
   it('should return vehicles sorted newest first (descending createdAt)', async () => {
-    const first = await Vehicle.create({ ...sampleVehicle, make: 'Ford' });
-    const second = await Vehicle.create({ ...sampleVehicle, make: 'BMW' });
+    const first = await Vehicle.create({ ...sampleVehicle, make: 'Ford', owner: user._id });
+    const second = await Vehicle.create({ ...sampleVehicle, make: 'BMW', owner: user._id });
 
     const res = await request(app)
       .get('/api/vehicles')
@@ -299,7 +304,7 @@ describe('GET /api/vehicles', () => {
   // ── Response shape ─────────────────────────────────────────────────────────
 
   it('should return vehicles with expected fields', async () => {
-    await Vehicle.create(sampleVehicle);
+    await Vehicle.create({ ...sampleVehicle, owner: user._id });
 
     const res = await request(app)
       .get('/api/vehicles')
@@ -313,6 +318,7 @@ describe('GET /api/vehicles', () => {
     expect(vehicle).toHaveProperty('category');
     expect(vehicle).toHaveProperty('price');
     expect(vehicle).toHaveProperty('quantity');
+    expect(vehicle).toHaveProperty('owner');
     expect(vehicle).toHaveProperty('createdAt');
     expect(vehicle).toHaveProperty('updatedAt');
   });
@@ -329,10 +335,10 @@ describe('PUT /api/vehicles/:id', () => {
     quantity: 10,
   };
 
-  // ── Authentication guard ───────────────────────────────────────────────────
+  // ── Authentication guard ────────────────────────────────────────────────────────
 
   it('should reject unauthenticated requests (no token)', async () => {
-    const vehicle = await Vehicle.create(baseVehicle);
+    const vehicle = await Vehicle.create({ ...baseVehicle, owner: user._id });
 
     const res = await request(app)
       .put(`/api/vehicles/${vehicle._id}`)
@@ -344,7 +350,7 @@ describe('PUT /api/vehicles/:id', () => {
   });
 
   it('should reject requests with an invalid token', async () => {
-    const vehicle = await Vehicle.create(baseVehicle);
+    const vehicle = await Vehicle.create({ ...baseVehicle, owner: user._id });
 
     const res = await request(app)
       .put(`/api/vehicles/${vehicle._id}`)
@@ -355,7 +361,7 @@ describe('PUT /api/vehicles/:id', () => {
     expect(res.body).toHaveProperty('message');
   });
 
-  // ── Not found ──────────────────────────────────────────────────────────────
+  // ── Not found ──────────────────────────────────────────────────────
 
   it('should return 404 when vehicle does not exist', async () => {
     const nonExistentId = new mongoose.Types.ObjectId();
@@ -370,10 +376,25 @@ describe('PUT /api/vehicles/:id', () => {
     expect(res.body.message).toMatch(/not found/i);
   });
 
-  // ── Successful update ──────────────────────────────────────────────────────
+  // ── Ownership guard ───────────────────────────────────────────────────
 
-  it('should update vehicle details when authenticated as USER', async () => {
-    const vehicle = await Vehicle.create(baseVehicle);
+  it('should return 403 when a non-owner tries to update the vehicle', async () => {
+    const vehicle = await Vehicle.create({ ...baseVehicle, owner: user._id });
+
+    const res = await request(app)
+      .put(`/api/vehicles/${vehicle._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ price: 30000 });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toHaveProperty('message');
+    expect(res.body.message).toMatch(/not authorized/i);
+  });
+
+  // ── Successful update ──────────────────────────────────────────────────
+
+  it('should update vehicle details when the owner makes the request', async () => {
+    const vehicle = await Vehicle.create({ ...baseVehicle, owner: user._id });
 
     const res = await request(app)
       .put(`/api/vehicles/${vehicle._id}`)
@@ -386,21 +407,8 @@ describe('PUT /api/vehicles/:id', () => {
     expect(res.body.make).toBe(baseVehicle.make);
   });
 
-  it('should update vehicle details when authenticated as ADMIN', async () => {
-    const vehicle = await Vehicle.create(baseVehicle);
-
-    const res = await request(app)
-      .put(`/api/vehicles/${vehicle._id}`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ make: 'Honda', model: 'Accord' });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body.make).toBe('Honda');
-    expect(res.body.model).toBe('Accord');
-  });
-
   it('should return the updated vehicle with all expected fields', async () => {
-    const vehicle = await Vehicle.create(baseVehicle);
+    const vehicle = await Vehicle.create({ ...baseVehicle, owner: user._id });
 
     const res = await request(app)
       .put(`/api/vehicles/${vehicle._id}`)
@@ -414,14 +422,15 @@ describe('PUT /api/vehicles/:id', () => {
     expect(res.body).toHaveProperty('category');
     expect(res.body).toHaveProperty('price');
     expect(res.body).toHaveProperty('quantity');
+    expect(res.body).toHaveProperty('owner');
     expect(res.body).toHaveProperty('createdAt');
     expect(res.body).toHaveProperty('updatedAt');
   });
 
-  // ── Validation errors ──────────────────────────────────────────────────────
+  // ── Validation errors ─────────────────────────────────────────────────
 
   it('should reject when price is a negative number', async () => {
-    const vehicle = await Vehicle.create(baseVehicle);
+    const vehicle = await Vehicle.create({ ...baseVehicle, owner: user._id });
 
     const res = await request(app)
       .put(`/api/vehicles/${vehicle._id}`)
@@ -433,7 +442,7 @@ describe('PUT /api/vehicles/:id', () => {
   });
 
   it('should reject when quantity is a negative number', async () => {
-    const vehicle = await Vehicle.create(baseVehicle);
+    const vehicle = await Vehicle.create({ ...baseVehicle, owner: user._id });
 
     const res = await request(app)
       .put(`/api/vehicles/${vehicle._id}`)
@@ -445,7 +454,7 @@ describe('PUT /api/vehicles/:id', () => {
   });
 
   it('should reject when make is an empty string', async () => {
-    const vehicle = await Vehicle.create(baseVehicle);
+    const vehicle = await Vehicle.create({ ...baseVehicle, owner: user._id });
 
     const res = await request(app)
       .put(`/api/vehicles/${vehicle._id}`)
@@ -457,7 +466,7 @@ describe('PUT /api/vehicles/:id', () => {
   });
 
   it('should reject when request body is empty', async () => {
-    const vehicle = await Vehicle.create(baseVehicle);
+    const vehicle = await Vehicle.create({ ...baseVehicle, owner: user._id });
 
     const res = await request(app)
       .put(`/api/vehicles/${vehicle._id}`)
@@ -483,7 +492,7 @@ describe('DELETE /api/vehicles/:id', () => {
   // ── Authentication guard ───────────────────────────────────────────────────
 
   it('should reject unauthenticated requests (no token)', async () => {
-    const vehicle = await Vehicle.create(baseVehicle);
+    const vehicle = await Vehicle.create({ ...baseVehicle, owner: user._id });
 
     const res = await request(app).delete(`/api/vehicles/${vehicle._id}`);
 
@@ -493,7 +502,7 @@ describe('DELETE /api/vehicles/:id', () => {
   });
 
   it('should reject requests with an invalid token', async () => {
-    const vehicle = await Vehicle.create(baseVehicle);
+    const vehicle = await Vehicle.create({ ...baseVehicle, owner: user._id });
 
     const res = await request(app)
       .delete(`/api/vehicles/${vehicle._id}`)
@@ -503,42 +512,42 @@ describe('DELETE /api/vehicles/:id', () => {
     expect(res.body).toHaveProperty('message');
   });
 
-  // ── Authorization guard (ADMIN only) ──────────────────────────────────────
+  // ── Authorization guard (owner only) ──────────────────────────
 
-  it('should return 403 when authenticated as USER (non-admin)', async () => {
-    const vehicle = await Vehicle.create(baseVehicle);
+  it('should return 403 when a non-owner tries to delete the vehicle', async () => {
+    const vehicle = await Vehicle.create({ ...baseVehicle, owner: user._id });
 
     const res = await request(app)
       .delete(`/api/vehicles/${vehicle._id}`)
-      .set('Authorization', `Bearer ${userToken}`);
+      .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.statusCode).toBe(403);
     expect(res.body).toHaveProperty('message');
     expect(res.body.message).toMatch(/not authorized/i);
   });
 
-  // ── Not found ──────────────────────────────────────────────────────────────
+  // ── Not found ──────────────────────────────────────────────────────
 
-  it('should return 404 when vehicle does not exist (as ADMIN)', async () => {
+  it('should return 404 when vehicle does not exist', async () => {
     const nonExistentId = new mongoose.Types.ObjectId();
 
     const res = await request(app)
       .delete(`/api/vehicles/${nonExistentId}`)
-      .set('Authorization', `Bearer ${adminToken}`);
+      .set('Authorization', `Bearer ${userToken}`);
 
     expect(res.statusCode).toBe(404);
     expect(res.body).toHaveProperty('message');
     expect(res.body.message).toMatch(/not found/i);
   });
 
-  // ── Successful deletion ────────────────────────────────────────────────────
+  // ── Successful deletion ─────────────────────────────────────────────────
 
-  it('should delete vehicle when authenticated as ADMIN', async () => {
-    const vehicle = await Vehicle.create(baseVehicle);
+  it('should delete vehicle when the owner makes the request', async () => {
+    const vehicle = await Vehicle.create({ ...baseVehicle, owner: user._id });
 
     const res = await request(app)
       .delete(`/api/vehicles/${vehicle._id}`)
-      .set('Authorization', `Bearer ${adminToken}`);
+      .set('Authorization', `Bearer ${userToken}`);
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toHaveProperty('message');
@@ -546,11 +555,11 @@ describe('DELETE /api/vehicles/:id', () => {
   });
 
   it('should remove the vehicle from the database after deletion', async () => {
-    const vehicle = await Vehicle.create(baseVehicle);
+    const vehicle = await Vehicle.create({ ...baseVehicle, owner: user._id });
 
     await request(app)
       .delete(`/api/vehicles/${vehicle._id}`)
-      .set('Authorization', `Bearer ${adminToken}`);
+      .set('Authorization', `Bearer ${userToken}`);
 
     const deleted = await Vehicle.findById(vehicle._id);
     expect(deleted).toBeNull();
@@ -564,11 +573,11 @@ describe('GET /api/vehicles/search', () => {
 
   beforeEach(async () => {
     await Vehicle.create([
-      { make: 'Toyota', model: 'Camry',   category: 'Sedan',   price: 25000, quantity: 5 },
-      { make: 'Toyota', model: 'RAV4',    category: 'SUV',     price: 35000, quantity: 3 },
-      { make: 'Honda',  model: 'Civic',   category: 'Sedan',   price: 20000, quantity: 8 },
-      { make: 'Honda',  model: 'CR-V',    category: 'SUV',     price: 32000, quantity: 2 },
-      { make: 'Ford',   model: 'Mustang', category: 'Coupe',   price: 45000, quantity: 1 },
+      { make: 'Toyota', model: 'Camry',   category: 'Sedan',   price: 25000, quantity: 5, owner: user._id },
+      { make: 'Toyota', model: 'RAV4',    category: 'SUV',     price: 35000, quantity: 3, owner: user._id },
+      { make: 'Honda',  model: 'Civic',   category: 'Sedan',   price: 20000, quantity: 8, owner: user._id },
+      { make: 'Honda',  model: 'CR-V',    category: 'SUV',     price: 32000, quantity: 2, owner: user._id },
+      { make: 'Ford',   model: 'Mustang', category: 'Coupe',   price: 45000, quantity: 1, owner: user._id },
     ]);
   });
 
@@ -744,7 +753,7 @@ describe('POST /api/vehicles/:id/purchase', () => {
   };
 
   it('should reject unauthenticated requests (no token)', async () => {
-    const vehicle = await Vehicle.create(baseVehicle);
+    const vehicle = await Vehicle.create({ ...baseVehicle, owner: user._id });
     const res = await request(app).post(`/api/vehicles/${vehicle._id}/purchase`);
 
     expect(res.statusCode).toBe(401);
@@ -764,7 +773,7 @@ describe('POST /api/vehicles/:id/purchase', () => {
   });
 
   it('should decrease vehicle quantity by 1 and return updated vehicle details on success', async () => {
-    const vehicle = await Vehicle.create(baseVehicle);
+    const vehicle = await Vehicle.create({ ...baseVehicle, owner: user._id });
     const res = await request(app)
       .post(`/api/vehicles/${vehicle._id}/purchase`)
       .set('Authorization', `Bearer ${userToken}`);
@@ -775,7 +784,7 @@ describe('POST /api/vehicles/:id/purchase', () => {
   });
 
   it('should fail when vehicle is out of stock (quantity is 0)', async () => {
-    const vehicle = await Vehicle.create({ ...baseVehicle, quantity: 0 });
+    const vehicle = await Vehicle.create({ ...baseVehicle, quantity: 0, owner: user._id });
     const res = await request(app)
       .post(`/api/vehicles/${vehicle._id}/purchase`)
       .set('Authorization', `Bearer ${userToken}`);
@@ -798,7 +807,7 @@ describe('POST /api/vehicles/:id/restock', () => {
   };
 
   it('should reject unauthenticated requests (no token)', async () => {
-    const vehicle = await Vehicle.create(baseVehicle);
+    const vehicle = await Vehicle.create({ ...baseVehicle, owner: user._id });
     const res = await request(app)
       .post(`/api/vehicles/${vehicle._id}/restock`)
       .send({ quantity: 5 });
@@ -808,11 +817,11 @@ describe('POST /api/vehicles/:id/restock', () => {
     expect(res.body.message).toMatch(/not authorized/i);
   });
 
-  it('should reject requests from regular users (non-admin)', async () => {
-    const vehicle = await Vehicle.create(baseVehicle);
+  it('should reject requests from a non-owner', async () => {
+    const vehicle = await Vehicle.create({ ...baseVehicle, owner: user._id });
     const res = await request(app)
       .post(`/api/vehicles/${vehicle._id}/restock`)
-      .set('Authorization', `Bearer ${userToken}`)
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({ quantity: 5 });
 
     expect(res.statusCode).toBe(403);
@@ -824,7 +833,7 @@ describe('POST /api/vehicles/:id/restock', () => {
     const nonExistentId = new mongoose.Types.ObjectId();
     const res = await request(app)
       .post(`/api/vehicles/${nonExistentId}/restock`)
-      .set('Authorization', `Bearer ${adminToken}`)
+      .set('Authorization', `Bearer ${userToken}`)
       .send({ quantity: 5 });
 
     expect(res.statusCode).toBe(404);
@@ -833,10 +842,10 @@ describe('POST /api/vehicles/:id/restock', () => {
   });
 
   it('should reject when quantity is missing', async () => {
-    const vehicle = await Vehicle.create(baseVehicle);
+    const vehicle = await Vehicle.create({ ...baseVehicle, owner: user._id });
     const res = await request(app)
       .post(`/api/vehicles/${vehicle._id}/restock`)
-      .set('Authorization', `Bearer ${adminToken}`)
+      .set('Authorization', `Bearer ${userToken}`)
       .send({});
 
     expect(res.statusCode).toBe(400);
@@ -845,10 +854,10 @@ describe('POST /api/vehicles/:id/restock', () => {
   });
 
   it('should reject when quantity is not a number', async () => {
-    const vehicle = await Vehicle.create(baseVehicle);
+    const vehicle = await Vehicle.create({ ...baseVehicle, owner: user._id });
     const res = await request(app)
       .post(`/api/vehicles/${vehicle._id}/restock`)
-      .set('Authorization', `Bearer ${adminToken}`)
+      .set('Authorization', `Bearer ${userToken}`)
       .send({ quantity: 'five' });
 
     expect(res.statusCode).toBe(400);
@@ -857,10 +866,10 @@ describe('POST /api/vehicles/:id/restock', () => {
   });
 
   it('should reject when quantity is less than or equal to 0', async () => {
-    const vehicle = await Vehicle.create(baseVehicle);
+    const vehicle = await Vehicle.create({ ...baseVehicle, owner: user._id });
     const res = await request(app)
       .post(`/api/vehicles/${vehicle._id}/restock`)
-      .set('Authorization', `Bearer ${adminToken}`)
+      .set('Authorization', `Bearer ${userToken}`)
       .send({ quantity: 0 });
 
     expect(res.statusCode).toBe(400);
@@ -869,10 +878,10 @@ describe('POST /api/vehicles/:id/restock', () => {
   });
 
   it('should increase vehicle quantity and return updated details on success', async () => {
-    const vehicle = await Vehicle.create(baseVehicle);
+    const vehicle = await Vehicle.create({ ...baseVehicle, owner: user._id });
     const res = await request(app)
       .post(`/api/vehicles/${vehicle._id}/restock`)
-      .set('Authorization', `Bearer ${adminToken}`)
+      .set('Authorization', `Bearer ${userToken}`)
       .send({ quantity: 5 });
 
     expect(res.statusCode).toBe(200);

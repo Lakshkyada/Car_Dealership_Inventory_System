@@ -1,6 +1,15 @@
+import Button from './Button.jsx';
 import { formatCurrency } from '../utils/format.js';
 
-function VehicleCard({ vehicle, onPurchase, isPurchasing }) {
+function VehicleCard({
+  vehicle,
+  isOwner,
+  onPurchase,
+  isPurchasing,
+  onEdit,
+  onDelete,
+  onRestock,
+}) {
   const isOutOfStock = vehicle.quantity <= 0;
 
   return (
@@ -29,14 +38,28 @@ function VehicleCard({ vehicle, onPurchase, isPurchasing }) {
         <span className="text-sm text-gray-600">Qty: {vehicle.quantity}</span>
       </div>
 
-      <button
-        type="button"
-        onClick={() => onPurchase?.(vehicle)}
-        disabled={isOutOfStock || isPurchasing}
-        className="mt-4 w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
-      >
-        {isOutOfStock ? 'Out of Stock' : isPurchasing ? 'Purchasing…' : 'Purchase'}
-      </button>
+      {isOwner ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button variant="secondary" className="flex-1" onClick={() => onEdit?.(vehicle)}>
+            Edit
+          </Button>
+          <Button variant="secondary" className="flex-1" onClick={() => onRestock?.(vehicle)}>
+            Restock
+          </Button>
+          <Button variant="danger" className="flex-1" onClick={() => onDelete?.(vehicle)}>
+            Delete
+          </Button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => onPurchase?.(vehicle)}
+          disabled={isOutOfStock || isPurchasing}
+          className="mt-4 w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
+        >
+          {isOutOfStock ? 'Out of Stock' : isPurchasing ? 'Purchasing…' : 'Purchase'}
+        </button>
+      )}
     </div>
   );
 }

@@ -15,7 +15,7 @@ function AddVehicle() {
 
     try {
       await createVehicle(values);
-      navigate('/admin', { state: { message: 'Vehicle added successfully.' } });
+      navigate('/', { state: { message: 'Vehicle added successfully.' } });
     } catch (err) {
       setApiError(getApiErrorMessage(err, 'Unable to add vehicle. Please try again.'));
     } finally {

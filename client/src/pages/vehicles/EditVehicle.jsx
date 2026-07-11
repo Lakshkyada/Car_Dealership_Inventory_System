@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import VehicleForm from '../../components/VehicleForm.jsx';
 import { fetchVehicles, updateVehicle } from '../../api/vehicleApi.js';
+import { useAuth } from '../../context/AuthContext.jsx';
 import { getApiErrorMessage } from '../../utils/validators.js';
 
 function EditVehicle() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
 
   const [vehicle, setVehicle] = useState(location.state?.vehicle ?? null);
   const [isLoading, setIsLoading] = useState(!location.state?.vehicle);
@@ -32,13 +34,15 @@ function EditVehicle() {
       .finally(() => setIsLoading(false));
   }, [id, vehicle]);
 
+  const isOwner = vehicle && user?._id && vehicle.owner === user._id;
+
   const handleSubmit = async (values) => {
     setIsSubmitting(true);
     setApiError('');
 
     try {
       await updateVehicle(id, values);
-      navigate('/admin', { state: { message: 'Vehicle updated successfully.' } });
+      navigate('/', { state: { message: 'Vehicle updated successfully.' } });
     } catch (err) {
       setApiError(getApiErrorMessage(err, 'Unable to update vehicle. Please try again.'));
     } finally {
@@ -57,13 +61,22 @@ function EditVehicle() {
         {!isLoading && loadError && (
           <div className="mt-6 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
             {loadError}{' '}
-            <Link to="/admin" className="font-medium underline">
-              Back to Admin Dashboard
+            <Link to="/" className="font-medium underline">
+              Back to Home
             </Link>
           </div>
         )}
 
-        {!isLoading && !loadError && vehicle && (
+        {!isLoading && !loadError && vehicle && !isOwner && (
+          <div className="mt-6 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+            You are not authorized to edit this vehicle.{' '}
+            <Link to="/" className="font-medium underline">
+              Back to Home
+            </Link>
+          </div>
+        )}
+
+        {!isLoading && !loadError && vehicle && isOwner && (
           <div className="mt-6">
             <VehicleForm
               initialValues={{

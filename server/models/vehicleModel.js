@@ -27,6 +27,11 @@ const vehicleSchema = new mongoose.Schema(
       required: [true, 'Quantity is required'],
       min: [0, 'Quantity must be a non-negative number'],
     },
+    owner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
   },
   {
     timestamps: true,

@@ -23,12 +23,10 @@ function Navbar() {
     navigate('/');
   };
 
-  const isAdmin = user?.role === 'ADMIN';
-
   const navLinks = isAuthenticated
     ? [
         { to: '/', label: 'Home' },
-        ...(isAdmin ? [{ to: '/admin', label: 'Admin' }] : []),
+        { to: '/vehicles/new', label: 'Add Vehicle' },
       ]
     : [
         { to: '/', label: 'Home' },
