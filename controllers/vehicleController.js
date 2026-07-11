@@ -170,3 +170,28 @@ export const searchVehicles = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
+
+// @desc    Purchase a vehicle (decrease quantity by 1)
+// @route   POST /api/vehicles/:id/purchase
+// @access  Private (authenticated users)
+export const purchaseVehicle = async (req, res) => {
+  try {
+    const vehicle = await Vehicle.findById(req.params.id);
+
+    if (!vehicle) {
+      return res.status(404).json({ message: 'Vehicle not found' });
+    }
+
+    if (vehicle.quantity <= 0) {
+      return res.status(400).json({ message: 'Vehicle is out of stock' });
+    }
+
+    vehicle.quantity -= 1;
+    await vehicle.save();
+
+    return res.status(200).json(vehicle);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+

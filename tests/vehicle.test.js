@@ -731,3 +731,58 @@ describe('GET /api/vehicles/search', () => {
     expect(vehicle).toHaveProperty('updatedAt');
   });
 });
+
+// ─── POST /api/vehicles/:id/purchase ───────────────────────────────────────────
+
+describe('POST /api/vehicles/:id/purchase', () => {
+  const baseVehicle = {
+    make: 'Honda',
+    model: 'Civic',
+    category: 'Sedan',
+    price: 22000,
+    quantity: 2,
+  };
+
+  it('should reject unauthenticated requests (no token)', async () => {
+    const vehicle = await Vehicle.create(baseVehicle);
+    const res = await request(app).post(`/api/vehicles/${vehicle._id}/purchase`);
+
+    expect(res.statusCode).toBe(401);
+    expect(res.body).toHaveProperty('message');
+    expect(res.body.message).toMatch(/not authorized/i);
+  });
+
+  it('should return 404 when vehicle does not exist', async () => {
+    const nonExistentId = new mongoose.Types.ObjectId();
+    const res = await request(app)
+      .post(`/api/vehicles/${nonExistentId}/purchase`)
+      .set('Authorization', `Bearer ${userToken}`);
+
+    expect(res.statusCode).toBe(404);
+    expect(res.body).toHaveProperty('message');
+    expect(res.body.message).toMatch(/not found/i);
+  });
+
+  it('should decrease vehicle quantity by 1 and return updated vehicle details on success', async () => {
+    const vehicle = await Vehicle.create(baseVehicle);
+    const res = await request(app)
+      .post(`/api/vehicles/${vehicle._id}/purchase`)
+      .set('Authorization', `Bearer ${userToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.quantity).toBe(1);
+    expect(res.body.make).toBe(baseVehicle.make);
+  });
+
+  it('should fail when vehicle is out of stock (quantity is 0)', async () => {
+    const vehicle = await Vehicle.create({ ...baseVehicle, quantity: 0 });
+    const res = await request(app)
+      .post(`/api/vehicles/${vehicle._id}/purchase`)
+      .set('Authorization', `Bearer ${userToken}`);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toHaveProperty('message');
+    expect(res.body.message).toMatch(/out of stock/i);
+  });
+});
+
