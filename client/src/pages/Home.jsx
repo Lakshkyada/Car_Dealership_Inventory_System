@@ -4,6 +4,11 @@ import VehicleCard from '../components/VehicleCard.jsx';
 import SearchFilter from '../components/SearchFilter.jsx';
 import ConfirmDialog from '../components/ConfirmDialog.jsx';
 import RestockModal from '../components/RestockModal.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorState from '../components/ErrorState.jsx';
+import Spinner from '../components/Spinner.jsx';
+import Toast from '../components/Toast.jsx';
+import { useToast } from '../components/useToast.js';
 import { getButtonClasses } from '../utils/buttonStyles.js';
 import {
   deleteVehicle,
@@ -19,12 +24,13 @@ function Home() {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const { toast, showToast, hideToast } = useToast();
 
   const [vehicles, setVehicles] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [purchasingIds, setPurchasingIds] = useState(new Set());
-  const [feedback, setFeedback] = useState(null);
+  const [lastRequest, setLastRequest] = useState({ type: 'all', params: undefined });
 
   const [vehiclePendingDelete, setVehiclePendingDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -51,21 +57,28 @@ function Home() {
 
   useEffect(() => {
     if (location.state?.message) {
-      setFeedback({ type: 'success', message: location.state.message });
+      showToast(location.state.message, 'success');
       navigate(location.pathname, { replace: true, state: {} });
     }
-  }, [location, navigate]);
+  }, [location, navigate, showToast]);
 
   const handleSearch = (params) => {
+    setLastRequest({ type: 'search', params });
     loadVehicles(searchVehicles(params));
   };
 
   const handleReset = () => {
+    setLastRequest({ type: 'all', params: undefined });
     loadVehicles(fetchVehicles());
   };
 
+  const handleRetry = () => {
+    loadVehicles(
+      lastRequest.type === 'search' ? searchVehicles(lastRequest.params) : fetchVehicles()
+    );
+  };
+
   const handlePurchase = async (vehicle) => {
-    setFeedback(null);
     setPurchasingIds((prev) => new Set(prev).add(vehicle._id));
 
     try {
@@ -73,15 +86,12 @@ function Home() {
       setVehicles((prev) =>
         prev.map((item) => (item._id === updatedVehicle._id ? updatedVehicle : item))
       );
-      setFeedback({
-        type: 'success',
-        message: `Successfully purchased ${vehicle.make} ${vehicle.model}.`,
-      });
+      showToast(`Successfully purchased ${vehicle.make} ${vehicle.model}.`, 'success');
     } catch (err) {
-      setFeedback({
-        type: 'error',
-        message: getApiErrorMessage(err, 'Unable to complete purchase. Please try again.'),
-      });
+      showToast(
+        getApiErrorMessage(err, 'Unable to complete purchase. Please try again.'),
+        'error'
+      );
     } finally {
       setPurchasingIds((prev) => {
         const next = new Set(prev);
@@ -98,13 +108,10 @@ function Home() {
     try {
       await deleteVehicle(vehiclePendingDelete._id);
       setVehicles((prev) => prev.filter((item) => item._id !== vehiclePendingDelete._id));
-      setFeedback({ type: 'success', message: 'Vehicle deleted successfully.' });
+      showToast('Vehicle deleted successfully.', 'success');
       setVehiclePendingDelete(null);
     } catch (err) {
-      setFeedback({
-        type: 'error',
-        message: getApiErrorMessage(err, 'Unable to delete vehicle. Please try again.'),
-      });
+      showToast(getApiErrorMessage(err, 'Unable to delete vehicle. Please try again.'), 'error');
     } finally {
       setIsDeleting(false);
     }
@@ -120,10 +127,7 @@ function Home() {
       setVehicles((prev) =>
         prev.map((item) => (item._id === updatedVehicle._id ? updatedVehicle : item))
       );
-      setFeedback({
-        type: 'success',
-        message: `Restocked ${updatedVehicle.make} ${updatedVehicle.model} successfully.`,
-      });
+      showToast(`Restocked ${updatedVehicle.make} ${updatedVehicle.model} successfully.`, 'success');
       setVehiclePendingRestock(null);
     } catch (err) {
       setRestockError(getApiErrorMessage(err, 'Unable to restock vehicle. Please try again.'));
@@ -138,9 +142,9 @@ function Home() {
   };
 
   return (
-    <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+    <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-3xl font-bold text-gray-900">Vehicle Inventory</h1>
+        <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Vehicle Inventory</h1>
         <Link to="/vehicles/new" className={getButtonClasses('primary')}>
           Add Vehicle
         </Link>
@@ -150,34 +154,20 @@ function Home() {
         <SearchFilter onSearch={handleSearch} onReset={handleReset} isSearching={isLoading} />
       </div>
 
-      {feedback && (
-        <div
-          className={`mt-6 rounded-md px-4 py-3 text-center text-sm ${
-            feedback.type === 'success'
-              ? 'bg-green-50 text-green-700'
-              : 'bg-red-50 text-red-700'
-          }`}
-        >
-          {feedback.message}
-        </div>
-      )}
-
       {isLoading && (
-        <div className="mt-10 flex justify-center">
-          <p className="text-gray-500">Loading vehicles…</p>
+        <div className="mt-10 flex flex-col items-center justify-center gap-2 text-gray-500">
+          <Spinner className="h-8 w-8" />
+          <p>Loading vehicles…</p>
         </div>
       )}
 
-      {!isLoading && error && (
-        <div className="mt-10 rounded-md bg-red-50 px-4 py-3 text-center text-sm text-red-700">
-          {error}
-        </div>
-      )}
+      {!isLoading && error && <ErrorState message={error} onRetry={handleRetry} />}
 
       {!isLoading && !error && vehicles.length === 0 && (
-        <div className="mt-10 rounded-md border border-dashed border-gray-300 px-4 py-10 text-center text-gray-500">
-          No vehicles found. Try adjusting your search filters.
-        </div>
+        <EmptyState
+          title="No vehicles found"
+          message="Try adjusting your search filters, or add a new vehicle to get started."
+        />
       )}
 
       {!isLoading && !error && vehicles.length > 0 && (
@@ -219,6 +209,8 @@ function Home() {
         isSubmitting={isRestocking}
         error={restockError}
       />
+
+      <Toast toast={toast} onClose={hideToast} />
     </section>
   );
 }

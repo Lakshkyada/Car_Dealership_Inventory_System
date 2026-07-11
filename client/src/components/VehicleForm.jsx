@@ -26,7 +26,7 @@ function validate(form) {
   return errors;
 }
 
-function VehicleForm({ initialValues, onSubmit, isSubmitting, submitLabel = 'Save', apiError }) {
+function VehicleForm({ initialValues, onSubmit, isSubmitting, submitLabel = 'Save' }) {
   const [form, setForm] = useState(() => ({ ...INITIAL_FORM, ...initialValues }));
   const [errors, setErrors] = useState({});
 
@@ -56,10 +56,6 @@ function VehicleForm({ initialValues, onSubmit, isSubmitting, submitLabel = 'Sav
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-      {apiError && (
-        <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{apiError}</div>
-      )}
-
       <FormField
         label="Make"
         id="make"
@@ -103,7 +99,7 @@ function VehicleForm({ initialValues, onSubmit, isSubmitting, submitLabel = 'Sav
         placeholder="5"
       />
 
-      <Button type="submit" disabled={isSubmitting} className="w-full">
+      <Button type="submit" isLoading={isSubmitting} className="w-full">
         {isSubmitting ? 'Saving…' : submitLabel}
       </Button>
     </form>

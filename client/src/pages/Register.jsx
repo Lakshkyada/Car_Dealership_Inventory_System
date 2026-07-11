@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Button from '../components/Button.jsx';
 import FormField from '../components/FormField.jsx';
+import Toast from '../components/Toast.jsx';
+import { useToast } from '../components/useToast.js';
 import { registerRequest } from '../api/authApi.js';
 import { getApiErrorMessage, isValidEmail } from '../utils/validators.js';
 
@@ -33,10 +35,10 @@ function validate(form) {
 function Register() {
   const [form, setForm] = useState(INITIAL_FORM);
   const [errors, setErrors] = useState({});
-  const [apiError, setApiError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const navigate = useNavigate();
+  const { toast, showToast, hideToast } = useToast();
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -46,7 +48,6 @@ function Register() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    setApiError('');
 
     const validationErrors = validate(form);
     setErrors(validationErrors);
@@ -63,9 +64,7 @@ function Register() {
       });
       navigate('/login', { state: { registered: true }, replace: true });
     } catch (error) {
-      setApiError(
-        getApiErrorMessage(error, 'Unable to register. Please try again.')
-      );
+      showToast(getApiErrorMessage(error, 'Unable to register. Please try again.'), 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -78,12 +77,6 @@ function Register() {
         <p className="mt-2 text-sm text-gray-600">
           Create an account to get started.
         </p>
-
-        {apiError && (
-          <div className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-            {apiError}
-          </div>
-        )}
 
         <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
           <FormField
@@ -116,7 +109,7 @@ function Register() {
             placeholder="••••••••"
           />
 
-          <Button type="submit" disabled={isSubmitting} className="w-full">
+          <Button type="submit" isLoading={isSubmitting} className="w-full">
             {isSubmitting ? 'Creating account…' : 'Register'}
           </Button>
         </form>
@@ -128,6 +121,8 @@ function Register() {
           </Link>
         </p>
       </div>
+
+      <Toast toast={toast} onClose={hideToast} />
     </section>
   );
 }

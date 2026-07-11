@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import VehicleForm from '../../components/VehicleForm.jsx';
+import Toast from '../../components/Toast.jsx';
+import Spinner from '../../components/Spinner.jsx';
+import { useToast } from '../../components/useToast.js';
 import { fetchVehicles, updateVehicle } from '../../api/vehicleApi.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { getApiErrorMessage } from '../../utils/validators.js';
@@ -10,12 +13,12 @@ function EditVehicle() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const { toast, showToast, hideToast } = useToast();
 
   const [vehicle, setVehicle] = useState(location.state?.vehicle ?? null);
   const [isLoading, setIsLoading] = useState(!location.state?.vehicle);
   const [loadError, setLoadError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [apiError, setApiError] = useState('');
 
   useEffect(() => {
     if (vehicle) return;
@@ -38,13 +41,12 @@ function EditVehicle() {
 
   const handleSubmit = async (values) => {
     setIsSubmitting(true);
-    setApiError('');
 
     try {
       await updateVehicle(id, values);
       navigate('/', { state: { message: 'Vehicle updated successfully.' } });
     } catch (err) {
-      setApiError(getApiErrorMessage(err, 'Unable to update vehicle. Please try again.'));
+      showToast(getApiErrorMessage(err, 'Unable to update vehicle. Please try again.'), 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -56,7 +58,12 @@ function EditVehicle() {
         <h1 className="text-2xl font-bold text-gray-900">Edit Vehicle</h1>
         <p className="mt-2 text-sm text-gray-600">Update the vehicle details below.</p>
 
-        {isLoading && <p className="mt-6 text-sm text-gray-500">Loading vehicle…</p>}
+        {isLoading && (
+          <div className="mt-6 flex items-center gap-2 text-sm text-gray-500">
+            <Spinner className="h-4 w-4" />
+            <span>Loading vehicle…</span>
+          </div>
+        )}
 
         {!isLoading && loadError && (
           <div className="mt-6 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -89,11 +96,12 @@ function EditVehicle() {
               onSubmit={handleSubmit}
               isSubmitting={isSubmitting}
               submitLabel="Save Changes"
-              apiError={apiError}
             />
           </div>
         )}
       </div>
+
+      <Toast toast={toast} onClose={hideToast} />
     </section>
   );
 }

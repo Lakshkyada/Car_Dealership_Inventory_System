@@ -1,23 +1,24 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import VehicleForm from '../../components/VehicleForm.jsx';
+import Toast from '../../components/Toast.jsx';
+import { useToast } from '../../components/useToast.js';
 import { createVehicle } from '../../api/vehicleApi.js';
 import { getApiErrorMessage } from '../../utils/validators.js';
 
 function AddVehicle() {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [apiError, setApiError] = useState('');
   const navigate = useNavigate();
+  const { toast, showToast, hideToast } = useToast();
 
   const handleSubmit = async (values) => {
     setIsSubmitting(true);
-    setApiError('');
 
     try {
       await createVehicle(values);
       navigate('/', { state: { message: 'Vehicle added successfully.' } });
     } catch (err) {
-      setApiError(getApiErrorMessage(err, 'Unable to add vehicle. Please try again.'));
+      showToast(getApiErrorMessage(err, 'Unable to add vehicle. Please try again.'), 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -32,14 +33,11 @@ function AddVehicle() {
         </p>
 
         <div className="mt-6">
-          <VehicleForm
-            onSubmit={handleSubmit}
-            isSubmitting={isSubmitting}
-            submitLabel="Add Vehicle"
-            apiError={apiError}
-          />
+          <VehicleForm onSubmit={handleSubmit} isSubmitting={isSubmitting} submitLabel="Add Vehicle" />
         </div>
       </div>
+
+      <Toast toast={toast} onClose={hideToast} />
     </section>
   );
 }

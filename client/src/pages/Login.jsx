@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Button from '../components/Button.jsx';
 import FormField from '../components/FormField.jsx';
+import Toast from '../components/Toast.jsx';
+import { useToast } from '../components/useToast.js';
 import { loginRequest } from '../api/authApi.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { getApiErrorMessage, isValidEmail } from '../utils/validators.js';
@@ -27,13 +29,19 @@ function validate(form) {
 function Login() {
   const [form, setForm] = useState(INITIAL_FORM);
   const [errors, setErrors] = useState({});
-  const [apiError, setApiError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const justRegistered = Boolean(location.state?.registered);
+  const { toast, showToast, hideToast } = useToast();
+
+  useEffect(() => {
+    if (location.state?.registered) {
+      showToast('Registration successful. You can now log in.', 'success');
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location, navigate, showToast]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -43,7 +51,6 @@ function Login() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    setApiError('');
 
     const validationErrors = validate(form);
     setErrors(validationErrors);
@@ -60,7 +67,7 @@ function Login() {
       login(data.token, data.user);
       navigate('/', { replace: true });
     } catch (error) {
-      setApiError(getApiErrorMessage(error, 'Unable to log in. Please try again.'));
+      showToast(getApiErrorMessage(error, 'Unable to log in. Please try again.'), 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -73,18 +80,6 @@ function Login() {
         <p className="mt-2 text-sm text-gray-600">
           Welcome back! Please enter your details.
         </p>
-
-        {justRegistered && (
-          <div className="mt-4 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">
-            Registration successful. You can now log in.
-          </div>
-        )}
-
-        {apiError && (
-          <div className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-            {apiError}
-          </div>
-        )}
 
         <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
           <FormField
@@ -108,7 +103,7 @@ function Login() {
             placeholder="••••••••"
           />
 
-          <Button type="submit" disabled={isSubmitting} className="w-full">
+          <Button type="submit" isLoading={isSubmitting} className="w-full">
             {isSubmitting ? 'Logging in…' : 'Login'}
           </Button>
         </form>
@@ -120,6 +115,8 @@ function Login() {
           </Link>
         </p>
       </div>
+
+      <Toast toast={toast} onClose={hideToast} />
     </section>
   );
 }

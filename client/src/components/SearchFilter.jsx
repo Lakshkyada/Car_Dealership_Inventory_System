@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Button from './Button.jsx';
 
 const INITIAL_FILTERS = {
   make: '',
@@ -83,21 +84,12 @@ function SearchFilter({ onSearch, onReset, isSearching }) {
       />
 
       <div className="col-span-full flex gap-2">
-        <button
-          type="submit"
-          disabled={isSearching}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
+        <Button type="submit" isLoading={isSearching}>
           {isSearching ? 'Searching…' : 'Search'}
-        </button>
-        <button
-          type="button"
-          onClick={handleReset}
-          disabled={isSearching}
-          className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-        >
+        </Button>
+        <Button type="button" variant="secondary" onClick={handleReset} disabled={isSearching}>
           Clear
-        </button>
+        </Button>
       </div>
     </form>
   );

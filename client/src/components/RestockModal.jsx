@@ -59,7 +59,7 @@ function RestockModal({ isOpen, vehicle, onClose, onSubmit, isSubmitting, error 
             <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" isLoading={isSubmitting}>
               {isSubmitting ? 'Restocking…' : 'Restock'}
             </Button>
           </div>

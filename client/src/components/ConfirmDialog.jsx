@@ -22,7 +22,7 @@ function ConfirmDialog({
           <Button variant="secondary" onClick={onCancel} disabled={isConfirming}>
             {cancelLabel}
           </Button>
-          <Button variant="danger" onClick={onConfirm} disabled={isConfirming}>
+          <Button variant="danger" onClick={onConfirm} isLoading={isConfirming}>
             {isConfirming ? 'Deleting…' : confirmLabel}
           </Button>
         </div>
