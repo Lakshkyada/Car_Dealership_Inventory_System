@@ -786,3 +786,99 @@ describe('POST /api/vehicles/:id/purchase', () => {
   });
 });
 
+// ─── POST /api/vehicles/:id/restock ────────────────────────────────────────────
+
+describe('POST /api/vehicles/:id/restock', () => {
+  const baseVehicle = {
+    make: 'Honda',
+    model: 'Civic',
+    category: 'Sedan',
+    price: 22000,
+    quantity: 2,
+  };
+
+  it('should reject unauthenticated requests (no token)', async () => {
+    const vehicle = await Vehicle.create(baseVehicle);
+    const res = await request(app)
+      .post(`/api/vehicles/${vehicle._id}/restock`)
+      .send({ quantity: 5 });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.body).toHaveProperty('message');
+    expect(res.body.message).toMatch(/not authorized/i);
+  });
+
+  it('should reject requests from regular users (non-admin)', async () => {
+    const vehicle = await Vehicle.create(baseVehicle);
+    const res = await request(app)
+      .post(`/api/vehicles/${vehicle._id}/restock`)
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({ quantity: 5 });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toHaveProperty('message');
+    expect(res.body.message).toMatch(/not authorized/i);
+  });
+
+  it('should return 404 when vehicle does not exist', async () => {
+    const nonExistentId = new mongoose.Types.ObjectId();
+    const res = await request(app)
+      .post(`/api/vehicles/${nonExistentId}/restock`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ quantity: 5 });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.body).toHaveProperty('message');
+    expect(res.body.message).toMatch(/not found/i);
+  });
+
+  it('should reject when quantity is missing', async () => {
+    const vehicle = await Vehicle.create(baseVehicle);
+    const res = await request(app)
+      .post(`/api/vehicles/${vehicle._id}/restock`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({});
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toHaveProperty('message');
+    expect(res.body.message).toMatch(/quantity is required/i);
+  });
+
+  it('should reject when quantity is not a number', async () => {
+    const vehicle = await Vehicle.create(baseVehicle);
+    const res = await request(app)
+      .post(`/api/vehicles/${vehicle._id}/restock`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ quantity: 'five' });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toHaveProperty('message');
+    expect(res.body.message).toMatch(/must be a number/i);
+  });
+
+  it('should reject when quantity is less than or equal to 0', async () => {
+    const vehicle = await Vehicle.create(baseVehicle);
+    const res = await request(app)
+      .post(`/api/vehicles/${vehicle._id}/restock`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ quantity: 0 });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toHaveProperty('message');
+    expect(res.body.message).toMatch(/greater than 0/i);
+  });
+
+  it('should increase vehicle quantity and return updated details on success', async () => {
+    const vehicle = await Vehicle.create(baseVehicle);
+    const res = await request(app)
+      .post(`/api/vehicles/${vehicle._id}/restock`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ quantity: 5 });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.quantity).toBe(7);
+    expect(res.body.make).toBe(baseVehicle.make);
+  });
+});
+
+

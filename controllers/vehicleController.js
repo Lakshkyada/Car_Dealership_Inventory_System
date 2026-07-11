@@ -195,3 +195,38 @@ export const purchaseVehicle = async (req, res) => {
   }
 };
 
+// @desc    Restock a vehicle (increase quantity)
+// @route   POST /api/vehicles/:id/restock
+// @access  Private (ADMIN only)
+export const restockVehicle = async (req, res) => {
+  try {
+    const { quantity } = req.body;
+
+    if (quantity === undefined || quantity === null) {
+      return res.status(400).json({ message: 'Quantity is required' });
+    }
+
+    if (typeof quantity !== 'number') {
+      return res.status(400).json({ message: 'Quantity must be a number' });
+    }
+
+    if (quantity <= 0) {
+      return res.status(400).json({ message: 'Quantity must be greater than 0' });
+    }
+
+    const vehicle = await Vehicle.findById(req.params.id);
+
+    if (!vehicle) {
+      return res.status(404).json({ message: 'Vehicle not found' });
+    }
+
+    vehicle.quantity += quantity;
+    await vehicle.save();
+
+    return res.status(200).json(vehicle);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+
