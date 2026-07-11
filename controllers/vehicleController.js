@@ -144,3 +144,29 @@ export const deleteVehicle = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
+
+// @desc    Search vehicles by make, model, category, and/or price range
+// @route   GET /api/vehicles/search
+// @access  Private (authenticated users)
+export const searchVehicles = async (req, res) => {
+  try {
+    const { make, model, category, minPrice, maxPrice } = req.query;
+
+    const query = {};
+
+    if (make) query.make = { $regex: new RegExp(`^${make}$`, 'i') };
+    if (model) query.model = { $regex: new RegExp(`^${model}$`, 'i') };
+    if (category) query.category = { $regex: new RegExp(`^${category}$`, 'i') };
+
+    if (minPrice !== undefined || maxPrice !== undefined) {
+      query.price = {};
+      if (minPrice !== undefined) query.price.$gte = Number(minPrice);
+      if (maxPrice !== undefined) query.price.$lte = Number(maxPrice);
+    }
+
+    const vehicles = await Vehicle.find(query).sort({ createdAt: -1 }).lean();
+    return res.status(200).json(vehicles);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
