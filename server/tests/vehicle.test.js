@@ -6,6 +6,15 @@ import app from '../app.js';
 import User from '../models/userModel.js';
 import Vehicle from '../models/vehicleModel.js';
 
+
+
+// ─── Fixtures ────────────────────────────────────────────────────────────────
+
+const SAMPLE_IMAGE_URL = 'https://res.cloudinary.com/demo/image/upload/v1/car-dealership-vehicles/sample.jpg';
+const SAMPLE_PUBLIC_ID = 'car-dealership-vehicles/sample';
+const MOCK_IMAGE_URL = 'https://res.cloudinary.com/demo/image/upload/v1/car-dealership-vehicles/mock.jpg';
+const MOCK_PUBLIC_ID = 'car-dealership-vehicles/mock';
+
 let mongoServer;
 let userToken;
 let adminToken;
@@ -66,148 +75,131 @@ describe('POST /api/vehicles', () => {
     category: 'Sedan',
     price: 25000,
     quantity: 10,
+    imageUrl: SAMPLE_IMAGE_URL,
+    publicId: SAMPLE_PUBLIC_ID,
   };
 
-  // ── Authentication guard ─────────────────────────────────────────────────
+  // Helper: build multipart request with all vehicle fields + optional image.
+  const postVehicle = (
+    token,
+    fields = { make: 'Toyota', model: 'Camry', category: 'Sedan', price: 25000, quantity: 10 },
+    { attachImage = true, filename = 'vehicle.jpg', fileContent = Buffer.from('fake-image') } = {}
+  ) => {
+    let req = request(app).post('/api/vehicles');
+    if (token) req = req.set('Authorization', `Bearer ${token}`);
+    Object.entries(fields).forEach(([k, v]) => { req = req.field(k, String(v)); });
+    if (attachImage) req = req.attach('image', fileContent, filename);
+    return req;
+  };
+
+  // ── Authentication guard ───────────────────────────────────────────────────
 
   it('should reject unauthenticated requests (no token)', async () => {
-    const res = await request(app).post('/api/vehicles').send(validVehicle);
-
+    const res = await postVehicle(null);
     expect(res.statusCode).toBe(401);
     expect(res.body).toHaveProperty('message');
     expect(res.body.message).toMatch(/not authorized/i);
   });
 
   it('should reject requests with an invalid token', async () => {
-    const res = await request(app)
-      .post('/api/vehicles')
-      .set('Authorization', 'Bearer invalidtoken')
-      .send(validVehicle);
-
+    const res = await postVehicle('invalidtoken');
     expect(res.statusCode).toBe(401);
     expect(res.body).toHaveProperty('message');
   });
 
-  // ── Successful creation ──────────────────────────────────────────────────
+  // ── Successful creation ───────────────────────────────────────────────────
 
   it('should create a vehicle successfully when authenticated as USER', async () => {
-    const res = await request(app)
-      .post('/api/vehicles')
-      .set('Authorization', `Bearer ${userToken}`)
-      .send(validVehicle);
-
+    const res = await postVehicle(userToken);
     expect(res.statusCode).toBe(201);
     expect(res.body).toHaveProperty('_id');
-    expect(res.body.make).toBe(validVehicle.make);
-    expect(res.body.model).toBe(validVehicle.model);
-    expect(res.body.category).toBe(validVehicle.category);
-    expect(res.body.price).toBe(validVehicle.price);
-    expect(res.body.quantity).toBe(validVehicle.quantity);
+    expect(res.body.make).toBe('Toyota');
+    expect(res.body.model).toBe('Camry');
     expect(res.body.owner).toBe(user._id.toString());
+    expect(res.body.imageUrl).toBe(MOCK_IMAGE_URL);
+    expect(res.body.publicId).toBe(MOCK_PUBLIC_ID);
     expect(res.body).toHaveProperty('createdAt');
     expect(res.body).toHaveProperty('updatedAt');
   });
 
   it('should create a vehicle successfully when authenticated as ADMIN', async () => {
-    const res = await request(app)
-      .post('/api/vehicles')
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send(validVehicle);
-
+    const res = await postVehicle(adminToken);
     expect(res.statusCode).toBe(201);
     expect(res.body).toHaveProperty('_id');
-    expect(res.body.make).toBe(validVehicle.make);
+    expect(res.body.make).toBe('Toyota');
     expect(res.body.owner).toBe(admin._id.toString());
+    expect(res.body.imageUrl).toBe(MOCK_IMAGE_URL);
   });
 
-  // ── Validation errors ────────────────────────────────────────────────────
+  // ── Validation errors ───────────────────────────────────────────────────
 
   it('should reject when "make" is missing', async () => {
-    const { make, ...withoutMake } = validVehicle;
-
-    const res = await request(app)
-      .post('/api/vehicles')
-      .set('Authorization', `Bearer ${userToken}`)
-      .send(withoutMake);
-
+    const res = await postVehicle(userToken, { model: 'Camry', category: 'Sedan', price: 25000, quantity: 10 });
     expect(res.statusCode).toBe(400);
     expect(res.body).toHaveProperty('message');
   });
 
   it('should reject when "model" is missing', async () => {
-    const { model, ...withoutModel } = validVehicle;
-
-    const res = await request(app)
-      .post('/api/vehicles')
-      .set('Authorization', `Bearer ${userToken}`)
-      .send(withoutModel);
-
+    const res = await postVehicle(userToken, { make: 'Toyota', category: 'Sedan', price: 25000, quantity: 10 });
     expect(res.statusCode).toBe(400);
     expect(res.body).toHaveProperty('message');
   });
 
   it('should reject when "category" is missing', async () => {
-    const { category, ...withoutCategory } = validVehicle;
-
-    const res = await request(app)
-      .post('/api/vehicles')
-      .set('Authorization', `Bearer ${userToken}`)
-      .send(withoutCategory);
-
+    const res = await postVehicle(userToken, { make: 'Toyota', model: 'Camry', price: 25000, quantity: 10 });
     expect(res.statusCode).toBe(400);
     expect(res.body).toHaveProperty('message');
   });
 
   it('should reject when "price" is missing', async () => {
-    const { price, ...withoutPrice } = validVehicle;
-
-    const res = await request(app)
-      .post('/api/vehicles')
-      .set('Authorization', `Bearer ${userToken}`)
-      .send(withoutPrice);
-
+    const res = await postVehicle(userToken, { make: 'Toyota', model: 'Camry', category: 'Sedan', quantity: 10 });
     expect(res.statusCode).toBe(400);
     expect(res.body).toHaveProperty('message');
   });
 
   it('should reject when "quantity" is missing', async () => {
-    const { quantity, ...withoutQuantity } = validVehicle;
-
-    const res = await request(app)
-      .post('/api/vehicles')
-      .set('Authorization', `Bearer ${userToken}`)
-      .send(withoutQuantity);
-
+    const res = await postVehicle(userToken, { make: 'Toyota', model: 'Camry', category: 'Sedan', price: 25000 });
     expect(res.statusCode).toBe(400);
     expect(res.body).toHaveProperty('message');
   });
 
   it('should reject when "price" is a negative number', async () => {
-    const res = await request(app)
-      .post('/api/vehicles')
-      .set('Authorization', `Bearer ${userToken}`)
-      .send({ ...validVehicle, price: -500 });
-
+    const res = await postVehicle(userToken, { make: 'Toyota', model: 'Camry', category: 'Sedan', price: -500, quantity: 10 });
     expect(res.statusCode).toBe(400);
     expect(res.body).toHaveProperty('message');
   });
 
   it('should reject when "quantity" is a negative number', async () => {
-    const res = await request(app)
-      .post('/api/vehicles')
-      .set('Authorization', `Bearer ${userToken}`)
-      .send({ ...validVehicle, quantity: -1 });
-
+    const res = await postVehicle(userToken, { make: 'Toyota', model: 'Camry', category: 'Sedan', price: 25000, quantity: -1 });
     expect(res.statusCode).toBe(400);
     expect(res.body).toHaveProperty('message');
   });
 
-  it('should reject when body is empty', async () => {
-    const res = await request(app)
-      .post('/api/vehicles')
-      .set('Authorization', `Bearer ${userToken}`)
-      .send({});
+  it('should reject when required fields are missing and no image is attached', async () => {
+    // postVehicle with a dummy field ensures multipart content-type → multer parses → controller validates → 400
+    const res = await postVehicle(
+      userToken,
+      { make: '' }, // single field triggers multipart content-type
+      { attachImage: false }
+    );
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toHaveProperty('message');
+  });
 
+  // ── Image requirement ───────────────────────────────────────────────────
+
+  it('should reject when no image is attached', async () => {
+    const res = await postVehicle(userToken, undefined, { attachImage: false });
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toHaveProperty('message');
+    expect(res.body.message).toMatch(/image is required/i);
+  });
+
+  it('should reject when the attached file is not an image', async () => {
+    const res = await postVehicle(userToken, undefined, {
+      filename: 'notes.txt',
+      fileContent: Buffer.from('just some text'),
+    });
     expect(res.statusCode).toBe(400);
     expect(res.body).toHaveProperty('message');
   });
@@ -222,6 +214,8 @@ describe('GET /api/vehicles', () => {
     category: 'Sedan',
     price: 25000,
     quantity: 10,
+    imageUrl: SAMPLE_IMAGE_URL,
+    publicId: SAMPLE_PUBLIC_ID,
   };
 
   // ── Authentication guard ───────────────────────────────────────────────────
@@ -245,14 +239,16 @@ describe('GET /api/vehicles', () => {
 
   // ── Empty collection ───────────────────────────────────────────────────────
 
-  it('should return an empty array when no vehicles exist', async () => {
+  it('should return an empty vehicles array when no vehicles exist', async () => {
     const res = await request(app)
       .get('/api/vehicles')
       .set('Authorization', `Bearer ${userToken}`);
 
     expect(res.statusCode).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body).toHaveLength(0);
+    expect(res.body).toHaveProperty('vehicles');
+    expect(Array.isArray(res.body.vehicles)).toBe(true);
+    expect(res.body.vehicles).toHaveLength(0);
+    expect(res.body.totalVehicles).toBe(0);
   });
 
   // ── Successful retrieval ───────────────────────────────────────────────────
@@ -266,8 +262,9 @@ describe('GET /api/vehicles', () => {
       .set('Authorization', `Bearer ${userToken}`);
 
     expect(res.statusCode).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body).toHaveLength(2);
+    expect(res.body).toHaveProperty('vehicles');
+    expect(Array.isArray(res.body.vehicles)).toBe(true);
+    expect(res.body.vehicles).toHaveLength(2);
   });
 
   it('should return all vehicles when authenticated as ADMIN', async () => {
@@ -278,13 +275,14 @@ describe('GET /api/vehicles', () => {
       .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.statusCode).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body).toHaveLength(1);
-    expect(res.body[0]).toHaveProperty('_id');
-    expect(res.body[0].make).toBe(sampleVehicle.make);
+    expect(res.body).toHaveProperty('vehicles');
+    expect(Array.isArray(res.body.vehicles)).toBe(true);
+    expect(res.body.vehicles).toHaveLength(1);
+    expect(res.body.vehicles[0]).toHaveProperty('_id');
+    expect(res.body.vehicles[0].make).toBe(sampleVehicle.make);
   });
 
-  // ── Sorted newest first ────────────────────────────────────────────────────
+  // ── Sorted newest first ───────────────────────────────────────────────────
 
   it('should return vehicles sorted newest first (descending createdAt)', async () => {
     const first = await Vehicle.create({ ...sampleVehicle, make: 'Ford', owner: user._id });
@@ -295,10 +293,10 @@ describe('GET /api/vehicles', () => {
       .set('Authorization', `Bearer ${userToken}`);
 
     expect(res.statusCode).toBe(200);
-    expect(res.body).toHaveLength(2);
+    expect(res.body.vehicles).toHaveLength(2);
     // newest (second) should come first
-    expect(res.body[0]._id).toBe(second._id.toString());
-    expect(res.body[1]._id).toBe(first._id.toString());
+    expect(res.body.vehicles[0]._id).toBe(second._id.toString());
+    expect(res.body.vehicles[1]._id).toBe(first._id.toString());
   });
 
   // ── Response shape ─────────────────────────────────────────────────────────
@@ -311,7 +309,7 @@ describe('GET /api/vehicles', () => {
       .set('Authorization', `Bearer ${userToken}`);
 
     expect(res.statusCode).toBe(200);
-    const vehicle = res.body[0];
+    const vehicle = res.body.vehicles[0];
     expect(vehicle).toHaveProperty('_id');
     expect(vehicle).toHaveProperty('make');
     expect(vehicle).toHaveProperty('model');
@@ -319,8 +317,132 @@ describe('GET /api/vehicles', () => {
     expect(vehicle).toHaveProperty('price');
     expect(vehicle).toHaveProperty('quantity');
     expect(vehicle).toHaveProperty('owner');
+    expect(vehicle).toHaveProperty('imageUrl');
+    expect(vehicle).toHaveProperty('publicId');
     expect(vehicle).toHaveProperty('createdAt');
     expect(vehicle).toHaveProperty('updatedAt');
+  });
+});
+
+// ─── GET /api/vehicles – Pagination ──────────────────────────────────────────
+
+describe('GET /api/vehicles (pagination)', () => {
+  const baseVehicle = {
+    make: 'Toyota',
+    model: 'Camry',
+    category: 'Sedan',
+    price: 25000,
+    quantity: 5,
+    imageUrl: SAMPLE_IMAGE_URL,
+    publicId: SAMPLE_PUBLIC_ID,
+  };
+
+  const seedVehicles = async (count) => {
+    const docs = Array.from({ length: count }, (_, i) => ({
+      ...baseVehicle,
+      make: `Make${i}`,
+      owner: user._id,
+    }));
+    return Vehicle.insertMany(docs);
+  };
+
+  it('should return the correct pagination envelope fields', async () => {
+    await seedVehicles(3);
+    const res = await request(app)
+      .get('/api/vehicles')
+      .set('Authorization', `Bearer ${userToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveProperty('vehicles');
+    expect(res.body).toHaveProperty('currentPage');
+    expect(res.body).toHaveProperty('totalPages');
+    expect(res.body).toHaveProperty('totalVehicles');
+    expect(res.body).toHaveProperty('hasNextPage');
+    expect(res.body).toHaveProperty('hasPreviousPage');
+  });
+
+  it('should default to page 1 with limit 9', async () => {
+    await seedVehicles(5);
+    const res = await request(app)
+      .get('/api/vehicles')
+      .set('Authorization', `Bearer ${userToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.currentPage).toBe(1);
+    expect(res.body.vehicles).toHaveLength(5);
+    expect(res.body.totalVehicles).toBe(5);
+    expect(res.body.hasNextPage).toBe(false);
+    expect(res.body.hasPreviousPage).toBe(false);
+  });
+
+  it('should return at most 9 vehicles by default when more than 9 exist', async () => {
+    await seedVehicles(12);
+    const res = await request(app)
+      .get('/api/vehicles')
+      .set('Authorization', `Bearer ${userToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.vehicles).toHaveLength(9);
+    expect(res.body.totalVehicles).toBe(12);
+    expect(res.body.totalPages).toBe(2);
+    expect(res.body.hasNextPage).toBe(true);
+    expect(res.body.hasPreviousPage).toBe(false);
+  });
+
+  it('should return vehicles for a specific page', async () => {
+    await seedVehicles(10);
+    const res = await request(app)
+      .get('/api/vehicles?page=2&limit=9')
+      .set('Authorization', `Bearer ${userToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.currentPage).toBe(2);
+    expect(res.body.vehicles).toHaveLength(1);
+    expect(res.body.hasNextPage).toBe(false);
+    expect(res.body.hasPreviousPage).toBe(true);
+  });
+
+  it('should respect a custom limit query param', async () => {
+    await seedVehicles(6);
+    const res = await request(app)
+      .get('/api/vehicles?limit=4')
+      .set('Authorization', `Bearer ${userToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.vehicles).toHaveLength(4);
+    expect(res.body.totalPages).toBe(2);
+    expect(res.body.hasNextPage).toBe(true);
+  });
+
+  it('should set hasPreviousPage true when on page 2 or beyond', async () => {
+    await seedVehicles(10);
+    const res = await request(app)
+      .get('/api/vehicles?page=2&limit=5')
+      .set('Authorization', `Bearer ${userToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.hasPreviousPage).toBe(true);
+    expect(res.body.hasNextPage).toBe(false);
+  });
+
+  it('should compute totalPages correctly (ceil)', async () => {
+    await seedVehicles(20);
+    const res = await request(app)
+      .get('/api/vehicles?limit=9')
+      .set('Authorization', `Bearer ${userToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.totalPages).toBe(3); // ceil(20/9) = 3
+  });
+
+  it('should clamp page to 1 when an invalid page value is provided', async () => {
+    await seedVehicles(3);
+    const res = await request(app)
+      .get('/api/vehicles?page=0')
+      .set('Authorization', `Bearer ${userToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.currentPage).toBe(1);
   });
 });
 
@@ -333,6 +455,8 @@ describe('PUT /api/vehicles/:id', () => {
     category: 'Sedan',
     price: 25000,
     quantity: 10,
+    imageUrl: SAMPLE_IMAGE_URL,
+    publicId: SAMPLE_PUBLIC_ID,
   };
 
   // ── Authentication guard ────────────────────────────────────────────────────────
@@ -487,6 +611,8 @@ describe('DELETE /api/vehicles/:id', () => {
     category: 'Sedan',
     price: 25000,
     quantity: 10,
+    imageUrl: SAMPLE_IMAGE_URL,
+    publicId: SAMPLE_PUBLIC_ID,
   };
 
   // ── Authentication guard ───────────────────────────────────────────────────
@@ -573,11 +699,11 @@ describe('GET /api/vehicles/search', () => {
 
   beforeEach(async () => {
     await Vehicle.create([
-      { make: 'Toyota', model: 'Camry',   category: 'Sedan',   price: 25000, quantity: 5, owner: user._id },
-      { make: 'Toyota', model: 'RAV4',    category: 'SUV',     price: 35000, quantity: 3, owner: user._id },
-      { make: 'Honda',  model: 'Civic',   category: 'Sedan',   price: 20000, quantity: 8, owner: user._id },
-      { make: 'Honda',  model: 'CR-V',    category: 'SUV',     price: 32000, quantity: 2, owner: user._id },
-      { make: 'Ford',   model: 'Mustang', category: 'Coupe',   price: 45000, quantity: 1, owner: user._id },
+      { make: 'Toyota', model: 'Camry',   category: 'Sedan',   price: 25000, quantity: 5, owner: user._id, imageUrl: SAMPLE_IMAGE_URL, publicId: SAMPLE_PUBLIC_ID },
+      { make: 'Toyota', model: 'RAV4',    category: 'SUV',     price: 35000, quantity: 3, owner: user._id, imageUrl: SAMPLE_IMAGE_URL, publicId: SAMPLE_PUBLIC_ID },
+      { make: 'Honda',  model: 'Civic',   category: 'Sedan',   price: 20000, quantity: 8, owner: user._id, imageUrl: SAMPLE_IMAGE_URL, publicId: SAMPLE_PUBLIC_ID },
+      { make: 'Honda',  model: 'CR-V',    category: 'SUV',     price: 32000, quantity: 2, owner: user._id, imageUrl: SAMPLE_IMAGE_URL, publicId: SAMPLE_PUBLIC_ID },
+      { make: 'Ford',   model: 'Mustang', category: 'Coupe',   price: 45000, quantity: 1, owner: user._id, imageUrl: SAMPLE_IMAGE_URL, publicId: SAMPLE_PUBLIC_ID },
     ]);
   });
 
@@ -750,6 +876,8 @@ describe('POST /api/vehicles/:id/purchase', () => {
     category: 'Sedan',
     price: 22000,
     quantity: 2,
+    imageUrl: SAMPLE_IMAGE_URL,
+    publicId: SAMPLE_PUBLIC_ID,
   };
 
   it('should reject unauthenticated requests (no token)', async () => {
@@ -804,6 +932,8 @@ describe('POST /api/vehicles/:id/restock', () => {
     category: 'Sedan',
     price: 22000,
     quantity: 2,
+    imageUrl: SAMPLE_IMAGE_URL,
+    publicId: SAMPLE_PUBLIC_ID,
   };
 
   it('should reject unauthenticated requests (no token)', async () => {
