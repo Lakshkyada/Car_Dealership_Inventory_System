@@ -1,11 +1,14 @@
 import Vehicle from '../models/vehicleModel.js';
+import { uploadImage, deleteImage } from '../services/cloudinaryService.js';
 
 // @desc    Create a new vehicle
 // @route   POST /api/vehicles
 // @access  Private (authenticated users)
 export const createVehicle = async (req, res) => {
   try {
-    const { make, model, category, price, quantity } = req.body;
+    const { make, model, category } = req.body;
+    const price = Number(req.body.price);
+    const quantity = Number(req.body.quantity);
 
     // Validate required fields
     if (
@@ -18,10 +21,12 @@ export const createVehicle = async (req, res) => {
       category === undefined ||
       category === null ||
       category === '' ||
-      price === undefined ||
-      price === null ||
-      quantity === undefined ||
-      quantity === null
+      req.body.price === undefined ||
+      req.body.price === null ||
+      req.body.price === '' ||
+      req.body.quantity === undefined ||
+      req.body.quantity === null ||
+      req.body.quantity === ''
     ) {
       return res.status(400).json({
         message: 'make, model, category, price, and quantity are required',
@@ -29,15 +34,36 @@ export const createVehicle = async (req, res) => {
     }
 
     // Validate non-negative numeric constraints before hitting the DB
-    if (price < 0) {
+    if (Number.isNaN(price) || price < 0) {
       return res.status(400).json({ message: 'Price must be a non-negative number' });
     }
 
-    if (quantity < 0) {
+    if (Number.isNaN(quantity) || quantity < 0) {
       return res.status(400).json({ message: 'Quantity must be a non-negative number' });
     }
 
-    const vehicle = await Vehicle.create({ make, model, category, price, quantity, owner: req.user._id });
+    // Validate that an image was attached
+    if (!req.file) {
+      return res.status(400).json({ message: 'Vehicle image is required' });
+    }
+
+    let result;
+    try {
+      result = await uploadImage(req.file);
+    } catch (uploadError) {
+      return res.status(502).json({ message: 'Failed to upload vehicle image. Please try again.' });
+    }
+
+    const vehicle = await Vehicle.create({
+      make,
+      model,
+      category,
+      price,
+      quantity,
+      owner: req.user._id,
+      imageUrl: result.imageUrl,
+      publicId: result.publicId,
+    });
 
     return res.status(201).json({
       _id: vehicle._id,
@@ -47,6 +73,8 @@ export const createVehicle = async (req, res) => {
       price: vehicle.price,
       quantity: vehicle.quantity,
       owner: vehicle.owner,
+      imageUrl: vehicle.imageUrl,
+      publicId: vehicle.publicId,
       createdAt: vehicle.createdAt,
       updatedAt: vehicle.updatedAt,
     });
@@ -63,13 +91,30 @@ export const createVehicle = async (req, res) => {
   }
 };
 
-// @desc    Get all vehicles
+// @desc    Get all vehicles (paginated)
 // @route   GET /api/vehicles
 // @access  Private (authenticated users)
 export const getVehicles = async (req, res) => {
   try {
-    const vehicles = await Vehicle.find().sort({ createdAt: -1 }).lean();
-    return res.status(200).json(vehicles);
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.max(1, parseInt(req.query.limit, 10) || 9);
+    const skip = (page - 1) * limit;
+
+    const [vehicles, totalVehicles] = await Promise.all([
+      Vehicle.find().sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      Vehicle.countDocuments(),
+    ]);
+
+    const totalPages = Math.ceil(totalVehicles / limit);
+
+    return res.status(200).json({
+      vehicles,
+      currentPage: page,
+      totalPages,
+      totalVehicles,
+      hasNextPage: page < totalPages,
+      hasPreviousPage: page > 1,
+    });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -80,10 +125,12 @@ export const getVehicles = async (req, res) => {
 // @access  Private (owner only)
 export const updateVehicle = async (req, res) => {
   try {
-    const { make, model, category, price, quantity } = req.body;
+    const { make, model, category } = req.body;
+    const price = req.body.price !== undefined ? Number(req.body.price) : undefined;
+    const quantity = req.body.quantity !== undefined ? Number(req.body.quantity) : undefined;
 
     // Reject empty body
-    if (Object.keys(req.body).length === 0) {
+    if (Object.keys(req.body).length === 0 && !req.file) {
       return res.status(400).json({ message: 'Request body must not be empty' });
     }
 
@@ -99,10 +146,10 @@ export const updateVehicle = async (req, res) => {
     }
 
     // Validate numeric constraints when provided
-    if (price !== undefined && price < 0) {
+    if (price !== undefined && (Number.isNaN(price) || price < 0)) {
       return res.status(400).json({ message: 'Price must be a non-negative number' });
     }
-    if (quantity !== undefined && quantity < 0) {
+    if (quantity !== undefined && (Number.isNaN(quantity) || quantity < 0)) {
       return res.status(400).json({ message: 'Quantity must be a non-negative number' });
     }
 
@@ -114,6 +161,24 @@ export const updateVehicle = async (req, res) => {
 
     if (vehicle.owner.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to update this vehicle' });
+    }
+
+    if (req.file) {
+      let result;
+      try {
+        result = await uploadImage(req.file);
+      } catch (uploadError) {
+        return res.status(502).json({ message: 'Failed to upload vehicle image. Please try again.' });
+      }
+
+      try {
+        await deleteImage(vehicle.publicId);
+      } catch (deleteError) {
+        console.error('Failed to delete previous vehicle image from Cloudinary:', deleteError);
+      }
+
+      vehicle.imageUrl = result.imageUrl;
+      vehicle.publicId = result.publicId;
     }
 
     if (make !== undefined) vehicle.make = make;
@@ -150,6 +215,12 @@ export const deleteVehicle = async (req, res) => {
 
     if (vehicle.owner.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to delete this vehicle' });
+    }
+
+    try {
+      await deleteImage(vehicle.publicId);
+    } catch (deleteError) {
+      console.error('Failed to delete vehicle image from Cloudinary:', deleteError);
     }
 
     await vehicle.deleteOne();

@@ -21,6 +21,8 @@ import {
 import { useAuth } from '../context/useAuth.js';
 import { getApiErrorMessage } from '../utils/validators.js';
 
+const PAGE_LIMIT = 9;
+
 function Home() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -34,6 +36,11 @@ function Home() {
   const [purchasingIds, setPurchasingIds] = useState(new Set());
   const [lastRequest, setLastRequest] = useState({ type: 'all', params: undefined });
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalVehicles, setTotalVehicles] = useState(0);
+
   const [vehiclePendingDelete, setVehiclePendingDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -41,12 +48,26 @@ function Home() {
   const [isRestocking, setIsRestocking] = useState(false);
   const [restockError, setRestockError] = useState('');
 
-  const loadVehicles = (request) => {
+  const loadVehicles = (request, isSearchMode = false) => {
     setIsLoading(true);
     setError('');
 
     request
-      .then(({ data }) => setVehicles(data))
+      .then(({ data }) => {
+        if (isSearchMode) {
+          // Search returns a flat array
+          setVehicles(Array.isArray(data) ? data : data.vehicles ?? []);
+          setCurrentPage(1);
+          setTotalPages(1);
+          setTotalVehicles(Array.isArray(data) ? data.length : data.totalVehicles ?? 0);
+        } else {
+          // Paginated response
+          setVehicles(data.vehicles ?? []);
+          setCurrentPage(data.currentPage ?? 1);
+          setTotalPages(data.totalPages ?? 1);
+          setTotalVehicles(data.totalVehicles ?? 0);
+        }
+      })
       .catch((err) => {
         setError(getApiErrorMessage(err, 'Unable to load vehicles. Please try again.'));
       })
@@ -54,23 +75,33 @@ function Home() {
   };
 
   useEffect(() => {
-    loadVehicles(fetchVehicles());
-  }, []);
+    loadVehicles(fetchVehicles({ page: currentPage, limit: PAGE_LIMIT }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage]);
 
   const handleSearch = (params) => {
     setLastRequest({ type: 'search', params });
-    loadVehicles(searchVehicles(params));
+    loadVehicles(searchVehicles(params), true);
   };
 
   const handleReset = () => {
     setLastRequest({ type: 'all', params: undefined });
-    loadVehicles(fetchVehicles());
+    setCurrentPage(1);
+    loadVehicles(fetchVehicles({ page: 1, limit: PAGE_LIMIT }));
   };
 
   const handleRetry = () => {
-    loadVehicles(
-      lastRequest.type === 'search' ? searchVehicles(lastRequest.params) : fetchVehicles()
-    );
+    if (lastRequest.type === 'search') {
+      loadVehicles(searchVehicles(lastRequest.params), true);
+    } else {
+      loadVehicles(fetchVehicles({ page: currentPage, limit: PAGE_LIMIT }));
+    }
+  };
+
+  const handlePageChange = (newPage) => {
+    setLastRequest({ type: 'all', params: undefined });
+    setCurrentPage(newPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handlePurchase = async (vehicle) => {
@@ -102,9 +133,17 @@ function Home() {
     setIsDeleting(true);
     try {
       await deleteVehicle(vehiclePendingDelete._id);
-      setVehicles((prev) => prev.filter((item) => item._id !== vehiclePendingDelete._id));
+
+      // After deletion, determine the right page to stay on
+      const newTotal = totalVehicles - 1;
+      const newTotalPages = Math.max(1, Math.ceil(newTotal / PAGE_LIMIT));
+      const targetPage = currentPage > newTotalPages ? newTotalPages : currentPage;
+
       showToast('Vehicle deleted successfully.', 'success');
       setVehiclePendingDelete(null);
+
+      setCurrentPage(targetPage);
+      loadVehicles(fetchVehicles({ page: targetPage, limit: PAGE_LIMIT }));
     } catch (err) {
       showToast(getApiErrorMessage(err, 'Unable to delete vehicle. Please try again.'), 'error');
     } finally {
@@ -136,6 +175,8 @@ function Home() {
     setRestockError('');
   };
 
+  const isSearchMode = lastRequest.type === 'search';
+
   return (
     <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -166,20 +207,53 @@ function Home() {
       )}
 
       {!isLoading && !error && vehicles.length > 0 && (
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {vehicles.map((vehicle) => (
-            <VehicleCard
-              key={vehicle._id}
-              vehicle={vehicle}
-              isOwner={Boolean(user?._id) && vehicle.owner === user._id}
-              onPurchase={handlePurchase}
-              isPurchasing={purchasingIds.has(vehicle._id)}
-              onEdit={(item) => navigate(`/vehicles/${item._id}/edit`, { state: { vehicle: item } })}
-              onDelete={(item) => setVehiclePendingDelete(item)}
-              onRestock={(item) => setVehiclePendingRestock(item)}
-            />
-          ))}
-        </div>
+        <>
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {vehicles.map((vehicle) => (
+              <VehicleCard
+                key={vehicle._id}
+                vehicle={vehicle}
+                isOwner={Boolean(user?._id) && vehicle.owner === user._id}
+                onPurchase={handlePurchase}
+                isPurchasing={purchasingIds.has(vehicle._id)}
+                onEdit={(item) => navigate(`/vehicles/${item._id}/edit`, { state: { vehicle: item } })}
+                onDelete={(item) => setVehiclePendingDelete(item)}
+                onRestock={(item) => setVehiclePendingRestock(item)}
+              />
+            ))}
+          </div>
+
+          {/* Pagination Controls – only shown in non-search mode */}
+          {!isSearchMode && totalPages > 1 && (
+            <div className="mt-8 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage <= 1}
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                id="pagination-prev"
+              >
+                ← Previous
+              </button>
+
+              <span className="text-sm text-gray-600">
+                Page <span className="font-semibold text-gray-900">{currentPage}</span> of{' '}
+                <span className="font-semibold text-gray-900">{totalPages}</span>
+                <span className="ml-2 text-gray-400">({totalVehicles} vehicles)</span>
+              </span>
+
+              <button
+                type="button"
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage >= totalPages}
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                id="pagination-next"
+              >
+                Next →
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       <ConfirmDialog

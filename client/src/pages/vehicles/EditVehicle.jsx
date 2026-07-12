@@ -27,7 +27,9 @@ function EditVehicle() {
     setIsLoading(true);
     fetchVehicles()
       .then(({ data }) => {
-        const found = data.find((item) => item._id === id);
+        // fetchVehicles returns a paginated envelope: { vehicles, ... }
+        const list = Array.isArray(data) ? data : (data.vehicles ?? []);
+        const found = list.find((item) => item._id === id);
         if (!found) {
           setLoadError('Vehicle not found.');
         } else {
@@ -94,6 +96,8 @@ function EditVehicle() {
               onSubmit={handleSubmit}
               isSubmitting={isSubmitting}
               submitLabel="Save Changes"
+              isEdit={true}
+              currentImageUrl={vehicle.imageUrl}
             />
           </div>
         )}

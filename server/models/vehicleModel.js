@@ -32,6 +32,14 @@ const vehicleSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+    imageUrl: {
+      type: String,
+      required: [true, 'Vehicle image URL is required'],
+    },
+    publicId: {
+      type: String,
+      required: [true, 'Vehicle image public ID is required'],
+    },
   },
   {
     timestamps: true,
